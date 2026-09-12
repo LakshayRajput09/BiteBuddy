@@ -123,7 +123,7 @@ export default function StudentOnboardingPage() {
         })
       });
 
-      showToast("Personalization saved! Welcome to CanteenAI.");
+      showToast("Personalization saved! Welcome to BiteBuddy.");
       router.push("/student/dashboard");
     } catch (e) {
       console.error("Save failed:", e);
@@ -147,7 +147,7 @@ export default function StudentOnboardingPage() {
             Let&apos;s personalize your food experience 🍴
           </h1>
           <p className="text-sm text-gray-500 max-w-xl mx-auto">
-            Tell us a little about yourself so CanteenAI can recommend meals tailored to your budget, time, taste, and goals.
+            Tell us a little about yourself so BiteBuddy can recommend meals tailored to your budget, time, taste, and goals.
           </p>
         </div>
 

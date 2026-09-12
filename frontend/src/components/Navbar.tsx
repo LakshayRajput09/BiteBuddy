@@ -59,7 +59,7 @@ export const Navbar: React.FC = () => {
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <span className="text-lg font-black text-slate-900 tracking-tight">CanteenAI</span>
+              <span className="text-lg font-black text-slate-900 tracking-tight">BiteBuddy</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             </div>
             <span className="text-[10px] text-gray-400 font-medium -mt-1 hidden sm:block">

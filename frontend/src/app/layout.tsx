@@ -8,7 +8,7 @@ import { OrderProvider } from "@/context/OrderContext";
 import OrderDrawer from "@/components/OrderDrawer";
 
 export const metadata: Metadata = {
-  title: "CanteenAI — Good Food. Smarter Choices.",
+  title: "BiteBuddy — Good Food. Smarter Choices.",
   description: "AI-powered college canteen assistant. Personalized meal recommendations based on budget, mood, cravings, diet, and nutrition goals.",
 };
 

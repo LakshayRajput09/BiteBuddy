@@ -1,4 +1,4 @@
-# CampusBite AI — College Canteen Recommendation Assistant
+# BiteBuddy — AI College Canteen Recommendation Assistant
 
 > An AI-powered conversational canteen assistant that understands a student's budget, mood, cravings, dietary requirements, prep time, and real-time availability to recommend and explain the best meal, value combination, and ranked alternatives.
 

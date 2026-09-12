@@ -14,7 +14,7 @@ export const Footer: React.FC = () => {
             <div className="w-8 h-8 rounded-lg bg-emerald-700 flex items-center justify-center text-white">
               <UtensilsCrossed className="w-4 h-4" />
             </div>
-            <span className="text-base font-black text-slate-900 tracking-tight">CanteenAI</span>
+            <span className="text-base font-black text-slate-900 tracking-tight">BiteBuddy</span>
           </div>
           <p className="text-slate-500 max-w-sm leading-relaxed">
             Your personal AI college canteen assistant. Bringing intelligent, dietary-safe, and budget-friendly meal recommendations to hungry students everyday.
@@ -69,7 +69,7 @@ export const Footer: React.FC = () => {
 
       <div className="max-w-7xl mx-auto pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-400 text-[11px]">
         <div>
-          © {new Date().getFullYear()} CanteenAI. Good Food. Smarter Choices.
+          © {new Date().getFullYear()} BiteBuddy. Good Food. Smarter Choices.
         </div>
         <div className="flex items-center gap-1">
           <span>Crafted with</span>

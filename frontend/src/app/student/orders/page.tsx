@@ -78,7 +78,7 @@ export default function StudentOrdersPage() {
             href="/chat"
             className="inline-block px-5 py-2.5 bg-[#059669] text-white text-xs font-bold rounded-xl shadow-sm mt-2"
           >
-            Ask CanteenAI for Suggestions
+            Ask BiteBuddy for Suggestions
           </Link>
         </div>
       ) : (

@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(
-    title="CanteenAI — Smart Multi-Role College Canteen Platform",
+    title="BiteBuddy — Smart Multi-Role College Canteen Platform",
     description="Multi-role conversational food discovery with deterministic constraint filtering, real-time availability, and nutrition tracking.",
     version="2.0.0",
     lifespan=lifespan
@@ -82,7 +82,7 @@ app.add_middleware(
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "canteen-recommendation-api", "version": "2.0.0"}
+    return {"status": "ok", "service": "bitebuddy-api", "version": "2.0.0"}
 
 
 @app.get("/menu", response_model=List[FoodOut])

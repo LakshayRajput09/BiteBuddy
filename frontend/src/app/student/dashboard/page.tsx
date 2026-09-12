@@ -110,7 +110,7 @@ export default function StudentDashboard() {
             Good afternoon, {studentName} 👋
           </h1>
           <p className="text-sm text-emerald-100/90 leading-relaxed">
-            What are you craving today? Tell CanteenAI your budget, mood, or time limit to find your optimal meal.
+            What are you craving today? Tell BiteBuddy your budget, mood, or time limit to find your optimal meal.
           </p>
         </div>
 
@@ -119,7 +119,7 @@ export default function StudentDashboard() {
             href="/chat"
             className="px-6 py-3 bg-[#10B981] hover:bg-[#059669] text-white font-bold text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 group"
           >
-            <span>Ask CanteenAI</span>
+            <span>Ask BiteBuddy</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </Link>
           <Link
@@ -236,7 +236,7 @@ export default function StudentDashboard() {
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform">
             <Sparkles className="w-5 h-5" />
           </div>
-          <span className="text-xs font-bold text-gray-800">Ask CanteenAI</span>
+          <span className="text-xs font-bold text-gray-800">Ask BiteBuddy</span>
         </Link>
 
         <Link

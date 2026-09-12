@@ -65,7 +65,7 @@ export default function OwnerOrdersPage() {
         <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-gray-400 space-y-2">
           <ShoppingBag className="w-10 h-10 mx-auto text-gray-300" />
           <p className="font-bold text-gray-700">No active canteen orders right now</p>
-          <p className="text-xs">When students place orders via CanteenAI, they will appear here instantly.</p>
+          <p className="text-xs">When students place orders via BiteBuddy, they will appear here instantly.</p>
         </div>
       ) : (
         <div className="space-y-4">

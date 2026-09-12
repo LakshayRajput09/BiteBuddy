@@ -61,7 +61,7 @@ export default function LoginPage() {
               <div className="w-8 h-8 rounded-lg bg-[#0C3B25] flex items-center justify-center text-white">
                 <UtensilsCrossed className="w-4 h-4" />
               </div>
-              <span className="text-base font-black text-slate-900 tracking-tight">CanteenAI</span>
+              <span className="text-base font-black text-slate-900 tracking-tight">BiteBuddy</span>
             </Link>
 
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">

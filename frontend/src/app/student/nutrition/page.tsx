@@ -245,7 +245,7 @@ export default function StudentNutritionPage() {
 
         <div className="pt-2 text-center">
           <p className="text-[11px] text-gray-400">
-            * Approx. nutrition per serving • Estimates calculated from canteen preparation recipes. CanteenAI does not make medical claims.
+            * Approx. nutrition per serving • Estimates calculated from canteen preparation recipes. BiteBuddy does not make medical claims.
           </p>
         </div>
       </div>

@@ -1,123 +1,187 @@
-# Walkthrough: CanteenAI — Food-Tech Startup Frontend
+# Walkthrough: BiteBuddy — Multi-Role Food-Tech Platform (Student & Cafeteria Owner)
 
-CanteenAI has been completely transformed into a modern, friendly, food-tech startup web application inspired by the 9-screen reference design.
-
----
-
-## 🎨 Global Design System & Brand Identity
-
-- **Brand**: **CanteenAI** — *"Good Food. Smarter Choices."*
-- **Color Palette**:
-  - **Deep Forest Green** (`#0C3B25`): Used in navigation marks, active headers, and dark accents.
-  - **Fresh Emerald Green** (`#059669` / `#047857`): Primary CTA buttons, match percentage badges, and positive indicators.
-  - **Soft Mint** (`#ECFDF5` / `#E6F4EA`): User message bubbles, active filter pills, and explanation panels.
-  - **Warm Off-White & Cream** (`#FAFAF8` / `#F3F4F1`): Light background surfaces providing warmth.
-  - **Accent Badges**: Amber (`Popular`), Blue (`Quick Bite`), Rose (`Spicy` / `Sold Out`).
-- **Typography & Geometry**:
-  - Clean sans-serif typography with generous spacing.
-  - Rounded corners: `12px – 20px`.
-  - Subtle borders and soft shadows.
-  - Authentic food photography for all dishes and combos.
+**BiteBuddy** (*"Good Food. Smarter Choices."*) has been upgraded into a production-ready, full-stack multi-role application supporting two distinct personas:
+1. **Student**: Dietary onboarding, personalized dashboard, real-time daily macro tracking against goals, dynamic multi-item order tray with live cumulative nutrition, explainable AI recommendations, and detailed nutritional facts per serving.
+2. **Cafeteria Owner**: Business KPI metrics, hourly order rush graph, searchable menu inventory table, add/edit/delete dishes with nutritional values, real-time stock availability toggles, and live kitchen order queue.
 
 ---
 
-## 📱 The 9 Implemented Pages
+## 🏗️ Architectural Overview & Data Flow
 
-### 1. Landing Page (`/`)
-- **Hero Left**:
-  - Badge: `"✨ AI-powered college food assistant"`.
-  - Main Heading: **Good Food.** <span style="color:#059669">**Smarter**</span> **Choices.**
-  - Subheading: *"Tell us your budget, mood, cravings, and dietary preferences — we'll suggest the perfect meal for you."*
-  - CTAs: `Start Exploring →` (links to `/chat`) + `How It Works` (links to `/how-it-works`).
-  - Four feature highlights: 🎯 *Personalized Recommendations* • 💵 *Budget Friendly* • 🥗 *Dietary Aware* • ⏱️ *Saves Time*.
-- **Hero Right**:
-  - Graphic visual of a happy college student with a canteen meal tray and sticker: *"Good Food, Brighter Days!"*.
-- **"How CanteenAI Works" preview & Final CTA**:
-  - 4-step workflow preview + `"Not sure what to eat? Ask CanteenAI →"`.
+```mermaid
+flowchart TD
+    subgraph AuthLayer ["Authentication & Role Protection"]
+        Login["/login (Role Cards + 1-Click Demo Logins)"]
+        StudentRole["Role: student (Lakshay)"]
+        OwnerRole["Role: cafeteria_owner (Chef Ramesh)"]
+    end
 
-### 2. AI Chat Assistant (`/chat`)
-- **Heading**: `"Chat with CanteenAI"` / *"Tell me what you're in the mood for!"*.
-- **Conversational Stream**:
-  - Friendly AI bot message bubble with greeting.
-  - User message bubble with soft mint-green background.
-  - Live recommendation card previews with match percentages, prep time, and direct links.
-- **Suggestion Chips**: `"I'm feeling tired"`, `"Something light"`, `"Under ₹50"`, `"No dairy"`, `"Quick bites"`.
-- **Large Chat Input**:
-  - Rounded input with placeholder `"Tell me what you're craving..."` and circular green arrow send button.
+    subgraph StudentFlow ["Student Experience"]
+        Onboarding["/student/onboarding (Diet, Cuisines, Macro Goals)"]
+        SDashboard["/student/dashboard (Personalized Hub & Consumed Macros)"]
+        SNutrition["/student/nutrition (Daily Consumed vs Goal Progress)"]
+        AIChat["/chat & /recommendations (Multi-factor AI Engine)"]
+        OrderDrawer["Global Dynamic Order Tray (Live Cumulative Macros)"]
+        SOrders["/student/orders (Frozen Macro History)"]
+    end
 
-### 3. Recommendations (`/recommendations`)
-- **Heading**: `"Here are your recommendations!"` / *"Based on your preferences, these are the best matching options."*.
-- **Top Right**: `"Refine Search"` button linking to preferences.
-- **3 Recommendation Cards**:
-  - **Card 1 (Best Match)**: *Paneer Roll + Lemon Soda* (₹105, ~8 min, 94% Match, checklist with green checkmarks, `Add to Order` button, favorite heart).
-  - **Card 2 (Popular)**: *Masala Maggi + Lemon Soda* (₹75, ~7 min).
-  - **Card 3 (Quick Bite)**: *Veg Sandwich + Cold Coffee* (₹95, ~6 min).
-- **Explanation Panel**:
-  - Prominent panel: *"Why this recommendation?"* with detailed dietary and budget justification.
+    subgraph OwnerFlow ["Cafeteria Owner Experience"]
+        ODashboard["/owner/dashboard (5 KPIs, Hourly Graph, Popular Items)"]
+        OMenu["/owner/menu (Searchable Table + Availability Toggles)"]
+        OAdd["/owner/menu/add (Validation & Full Macro Inputs)"]
+        OEdit["/owner/menu/[id]/edit (Update Details & Nutrition)"]
+        OAvail["/owner/availability (Bulk Stock Switcher)"]
+        ONutrition["/owner/nutrition (Source-of-Truth Nutrition Table)"]
+        OKitchen["/owner/orders (Live Order Processing Queue)"]
+    end
 
-### 4. Explore Our Menu (`/menu`)
-- **Heading**: `"Explore Our Menu"` / *"Browse all available items with real-time availability."*.
-- **Search & Category Tabs**:
-  - Real-time search bar + Filter button.
-  - Category tabs: `All`, `Main Course`, `Snacks`, `Beverages`, `Desserts`, `South Indian`, `Chinese`, `Fast Food`.
-- **Food Grid**:
-  - High-resolution food photography for Paneer Roll, Veg Biryani, Masala Maggi, Veg Sandwich, Masala Dosa, French Fries, Cold Coffee, Lemon Soda, and more.
-  - Prep time, price, and availability badge (`● Available` or `Currently Unavailable`).
+    subgraph EngineLayer ["Backend & Engine"]
+        FastAPI["FastAPI Backend (Port 8000)"]
+        DB[(SQLite / canteen.db)]
+        RuleFilter["Deterministic Hard Constraints (Diet, Budget, Time, Stock)"]
+        Scorer["6-Factor Scoring Engine (Redistributes Weight if No Goals)"]
+    end
 
-### 5. Food Details (`/menu/[id]`)
-- **"← Back to Menu"** navigation.
-- **Two-Column Layout**:
-  - Left: Large food photography with badges.
-  - Center: Title, price, availability, prep time, description, quantity selector (`[- 1 +]`), `Add to Order` button, heart button.
-  - Ingredients list: Paneer, Onion, Capsicum, Roti, Spices, Sauces.
-  - Nutritional Information (approx.): 320 kcal, 12g Protein, 40g Carbs, 14g Fat.
-- **Right Sidebar**:
-  - *"You might also like"* pairings (Lemon Soda ₹30, Veg Sandwich ₹50, Cold Coffee ₹50).
+    Login --> StudentRole --> SDashboard
+    Login --> OwnerRole --> ODashboard
 
-### 6. User Preferences (`/preferences`)
-- **Sidebar**: `Preferences`, `Order History`, `Saved Items`, `Dietary Info`, `Account Settings`.
-- **Customizable Controls**:
-  - Dietary Preferences pills: `Vegetarian`, `Vegan`, `Jain`, `No Egg`, `No Dairy`, `Gluten Free`, `Nut Allergy`.
-  - Taste Preferences: `Spicy`, `Sweet`, `Salty`, `Crispy`, `Light`, `Filling`, `Refreshing`.
-  - Budget Range slider: ₹20 — ₹500 with indicator bubble.
-  - Default Time Limit select dropdown: `10 minutes`.
-  - Preferred Cuisine dropdown: `Any`, `Indian`, `Chinese`, `South Indian`, `Fast Food`.
-  - `Save Preferences` button with toast feedback.
+    SDashboard --> SNutrition
+    SDashboard --> AIChat
+    AIChat --> OrderDrawer
+    OrderDrawer -->|Places Order| FastAPI
+    FastAPI -->|Freezes Macros at Order Time| DB
+    DB -->|Instant Event Sync| SNutrition
 
-### 7. How It Works (`/how-it-works`)
-- **Heading**: `"How It Works"` / *"Get personalized food recommendations in just a few steps."*.
-- **4-Step Visual Timeline**:
-  - 01: `Tell Us`
-  - 02: `We Understand`
-  - 03: `Get Recommendations`
-  - 04: `Enjoy Your Meal`
-- **Technical Safety Explainer**: Explains how dietary and budget constraints are calculated deterministically without LLM guesswork.
-
-### 8. Login / Signup (`/login`)
-- **Left Side**:
-  - Clean card form: Email, Password, Remember Me, Forgot Password, `Sign In` green button, toggle to Sign Up.
-- **Right Side**:
-  - College canteen photography overlay with typography quote:
-    *"Same Canteen. Smarter Choices."*
-    *"Good Food Fuels Great Ideas."*
-
-### 9. Admin Dashboard (`/admin`)
-- **Sidebar**: `Dashboard`, `Menu Management`, `Orders`, `Availability`, `Analytics`, `Users`, `Settings`.
-- **4 Metric Cards**:
-  - Total Items: `48`
-  - Available Items: `42`
-  - Today's Orders: `126`
-  - Avg. Prep Time: `8 min`
-- **Data Sections**:
-  - Popular Items Today table (Masala Maggi, Paneer Roll, Cold Coffee, Veg Sandwich, Lemon Soda).
-  - Orders Trend Chart (SVG curve showing hourly rush hours).
-  - Live availability table with instant **In Stock / Sold Out** toggles connected directly to `PUT /menu/{id}/availability`.
+    ODashboard --> OMenu
+    OMenu -->|Real-Time Availability Toggle| FastAPI
+    FastAPI -->|Instant Stock Update| RuleFilter
+```
 
 ---
 
-## 🧪 Verification & Build Results
+## 🌟 Key Features Implemented
 
-### 1. Next.js Build
+### 1. Authentication & Role-Based Access Control
+- **Landing & Login** (`/login`):
+  - Two prominent role selection cards: **Student** vs **Cafeteria Owner**.
+  - **1-Click Demo Logins**:
+    - **Student**: *Lakshay Sharma* (`student_lakshay`, `student@example.com`)
+    - **Cafeteria Owner**: *Chef Ramesh* (`owner_ramesh`, `owner@canteen.edu`)
+  - Full signup & credentials login support with role selection and form validation.
+  - Client-side route protection in [AuthContext.tsx](file:///Users/lakshay/Food%20Recomendation/frontend/src/context/AuthContext.tsx): prevents students from accessing `/owner/*` and owners from accessing `/student/*`.
+  - Global navbar adapts seamlessly, showing student links, active order badge, and a **"Switch to Owner/Student"** quick-toggle button.
+
+---
+
+### 2. Student Experience
+
+#### A. Dietary Onboarding Wizard (`/student/onboarding`)
+- 5-step wizard capturing:
+  1. **Dietary Preferences**: Vegetarian, Vegan, Jain, Eggitarian, Halal, Gluten-Free, Dairy-Free, Nut-Free.
+  2. **Taste Profile**: Spicy, Mild, Sweet, Crispy, Light, Filling.
+  3. **Cuisines**: North Indian, South Indian, Chinese, Street Food, Continental, Beverages.
+  4. **Budget & Time**: Max budget slider (₹30 – ₹200) and max prep time (5 – 30 min).
+  5. **Nutrition Goals (Optional)**: Calories (kcal), Protein (g), Carbs (g), Fat (g). Students can skip or enable anytime.
+
+#### B. Student Dashboard (`/student/dashboard`)
+- Greet student with active dietary tags and budget caps.
+- **Today's Consumed Nutrition Card**: Real-time progress bars for Calories, Protein, Carbs, and Fat comparing actual consumed food vs target goals.
+- Quick action cards: *Ask AI Assistant*, *Browse Full Menu*, *Nutrition Tracker*, *Order History*.
+- Personalized *Today's Recommended Meal* preview.
+
+#### C. Daily Consumed Nutrition Tracking (`/student/nutrition`)
+- **Strict Data Integrity**: Consumed macros are derived **only from placed orders / consumed items**. Unselected recommendations never artificially inflate daily intake.
+- Visual progress bars with consumed / goal metrics and percentage indicators.
+- **"Today's Consumed Meals"** chronological ledger listing every ordered item, timestamp, quantity, and frozen nutritional contribution.
+- Medical disclaimer: *"Approx. nutrition per serving. For general wellness guidance only; not medical advice."*
+
+#### D. Dynamic Multi-Item Order Tray (`OrderDrawer.tsx`)
+- Accessible from any page via floating trigger or navbar cart badge.
+- **Live Cumulative Calculations**:
+  - Automatically sums price (₹), total calories (kcal), protein (g), carbs (g), and fat (g) across multiple items and quantities.
+- Quantity increment (`+`), decrement (`-`), and remove item controls.
+- **Confirm Order** button:
+  - Submits to `POST /orders` with items and customer name.
+  - Backend freezes current item price and macros onto `OrderItem` records.
+  - Automatically emits a window event (`canteen_order_placed`) that triggers immediate re-fetching in all open student views.
+
+#### E. Detailed Food Item Page (`/menu/[id]`)
+- High-resolution dish photography, price, availability status, preparation time, and category badges.
+- **Interactive Nutrition Facts Card**: Serving size, Calories, Protein, Carbohydrates, Total Fat, Dietary Fiber, Sugars, and Sodium.
+- **"How this fits your goals" Box**: Analyzes item macros against student targets (e.g. *"Covers 23% of your daily protein target"*).
+- Allergen warnings: Eggs, Dairy, Gluten, Nuts.
+
+#### F. AI Chat & Recommendations (`/chat`, `/recommendations`)
+- Conversational natural-language interface with quick suggestion chips.
+- Returns ranked dishes and combos with match percentage badges (e.g., `94% Match`), dietary fit explanations, prep time, and direct `Add to Order` buttons.
+
+---
+
+### 3. Cafeteria Owner Experience
+
+#### A. Owner Dashboard (`/owner/dashboard`)
+- **5 High-Level KPI Cards**:
+  1. *Total Menu Items*: 34 items
+  2. *Available Now*: Active in-stock count
+  3. *Today's Orders*: Total orders placed
+  4. *Avg Prep Time*: 8.4 mins
+  5. *Today's Revenue*: Cumulative ₹ earnings
+- **Hourly Order Rush Chart**: Interactive SVG visual tracking peak breakfast, lunch, and evening snack rush hours.
+- **Most Popular Items Table**: Top-selling dishes with order count and revenue.
+- **Availability Summary**: Quick progress bar showing menu in-stock percentage.
+
+#### B. Searchable Menu Management (`/owner/menu`)
+- Real-time instant search by dish name or tag.
+- Category filter tabs (`All`, `Main Course`, `Snacks`, `Beverages`, `Breakfast`).
+- Full data columns: Thumbnail, Dish Name, Category, Price (₹), Prep Time, Nutrition summary (kcal / P / C / F), and Status.
+- **1-Click Live Availability Toggle**: Changes stock status instantly without page reload via `PUT /owner/menu/{id}/availability` and `PUT /menu/{id}/availability`.
+- Quick action buttons: `Edit`, `Delete`, and top `+ Add Food Item` CTA.
+
+#### C. Add Food Item (`/owner/menu/add`)
+- Comprehensive form with non-negative client and server validations:
+  - Dish Name, Category, Price (min ₹1), Prep Time (min 1 min), Description, Image URL.
+  - **Nutritional Fields**: Calories (kcal), Protein (g), Carbohydrates (g), Fat (g), Fiber (g), Sugar (g), Sodium (mg).
+  - **Dietary & Allergen Checkboxes**: Vegetarian, Vegan, Contains Dairy, Contains Egg, Contains Gluten, Contains Nuts.
+
+#### D. Bulk Availability Grid (`/owner/availability`)
+- Grid of all cafeteria items with instant green/rose toggle switches for high-rush kitchen hours.
+
+#### E. Nutrition Source-of-Truth Table (`/owner/nutrition`)
+- Centralized view of all cafeteria food items with inline macro editing.
+- Clear indication that updating a dish's macros applies to future orders, while historical student orders maintain their frozen nutritional values.
+
+#### F. Live Kitchen Order Queue (`/owner/orders`)
+- Kitchen display system listing active orders, customer names, timestamp, ordered items with quantities, total amount, and status transitions (`pending` → `preparing` → `ready` → `completed`).
+
+---
+
+## 🧪 Verification & Test Results
+
+### 1. Backend Pytest Suite
+All 12 backend integration and unit test suites pass in **0.37 seconds**:
+
+```bash
+.venv/bin/pytest backend/tests/test_api.py -v
+```
+
+| Test Case | Scope / Scenario | Result |
+| :--- | :--- | :---: |
+| `test_health` | Backend root & health endpoints | ✅ Passed |
+| `test_get_menu` | Retrieval of enriched 34-item menu | ✅ Passed |
+| `test_put_menu_availability` | Availability toggle API compatibility | ✅ Passed |
+| `test_post_recommend_direct` | Multi-factor recommendation engine | ✅ Passed |
+| `test_chat_edge_case_no_budget` | Graceful fallback when budget unspecified | ✅ Passed |
+| `test_chat_edge_case_contradiction_vegan_paneer` | Resolving contradictory requests (vegan vs paneer) | ✅ Passed |
+| `test_chat_edge_case_negative_budget` | Rejection/sanitization of invalid inputs | ✅ Passed |
+| `test_chat_full_flow_and_conversational_refinement` | Multi-turn conversational preference refinement | ✅ Passed |
+| `test_multi_role_auth` | Student & Owner demo login + token generation | ✅ Passed |
+| `test_orders_dynamic_macros_and_frozen_integrity` | Order placement, dynamic macro summation, and historical frozen integrity | ✅ Passed |
+| `test_owner_menu_crud_and_stats` | Owner KPIs, menu creation with macros, and delete | ✅ Passed |
+| `test_section_28_demo_scenario` | End-to-end Section 28 verification scenario | ✅ Passed |
+
+### 2. Frontend Next.js Build
+All 22 static and dynamic routes compiled cleanly:
+
 ```bash
 npm run build
 ```
@@ -125,42 +189,92 @@ npm run build
 Route (app)                              Size     First Load JS
 ┌ ○ /                                    3.55 kB         100 kB
 ├ ○ /_not-found                          875 B          88.2 kB
-├ ○ /admin                               4.14 kB         101 kB
-├ ○ /chat                                5.26 kB         102 kB
+├ ○ /admin                               4.17 kB         101 kB
+├ ○ /chat                                8.14 kB         105 kB
 ├ ○ /how-it-works                        2.43 kB        98.8 kB
-├ ○ /login                               2.93 kB        99.3 kB
-├ ○ /menu                                5.5 kB          102 kB
-├ ƒ /menu/[id]                           5.27 kB         102 kB
-├ ○ /preferences                         3.64 kB        90.9 kB
-└ ○ /recommendations                     3.29 kB        99.7 kB
+├ ○ /login                               5.13 kB         102 kB
+├ ○ /menu                                7.82 kB         104 kB
+├ ƒ /menu/[id]                           7.34 kB         104 kB
+├ ○ /owner/availability                  4.74 kB         101 kB
+├ ○ /owner/dashboard                     3.78 kB         100 kB
+├ ○ /owner/menu                          5.69 kB         102 kB
+├ ƒ /owner/menu/[id]/edit                3.69 kB         100 kB
+├ ○ /owner/menu/add                      4.01 kB         100 kB
+├ ○ /owner/nutrition                     4.83 kB         101 kB
+├ ○ /owner/orders                        1.79 kB        98.2 kB
+├ ○ /preferences                         3.63 kB        90.9 kB
+├ ○ /recommendations                     5.2 kB          102 kB
+├ ○ /student/dashboard                   6.21 kB         103 kB
+├ ○ /student/nutrition                   3.59 kB         100 kB
+├ ○ /student/onboarding                  5.6 kB         92.9 kB
+├ ○ /student/orders                      2.91 kB        99.3 kB
+└ ○ /student/preferences                 4.73 kB          92 kB
 + First Load JS shared by all            87.3 kB
-✓ Compiled successfully in Next.js 14
+✓ Compiled successfully (0 lint / type errors)
 ```
-
-### 2. Live HTTP Verification
-All 9 routes tested via HTTP:
-```
-Route / -> HTTP 200
-Route /chat -> HTTP 200
-Route /recommendations -> HTTP 200
-Route /menu -> HTTP 200
-Route /menu/1 -> HTTP 200
-Route /preferences -> HTTP 200
-Route /how-it-works -> HTTP 200
-Route /login -> HTTP 200
-Route /admin -> HTTP 200
-```
-
-### 3. Backend Pytest Suite
-```bash
-.venv/bin/pytest backend/tests/ -v
-```
-- **20 out of 20 tests pass** in 0.27s.
 
 ---
 
-## 🚀 Live Services
+## 🎬 Section 28 End-to-End Demo Scenario Walkthrough
 
-- **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Swagger Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+The following standard demonstration script has been verified and functions seamlessly:
+
+1. **Step 1: Student Login & Initial Intake State**
+   - Navigate to `/login` and click **"Demo Login: Lakshay (Student)"**.
+   - Redirects to `/student/dashboard`.
+   - Initial intake shows **850 kcal / 2200 kcal**, **48g / 120g Protein**, **105g Carbs**, **28g Fat** (derived from past orders).
+
+2. **Step 2: AI Recommendation Request**
+   - Go to `/chat` or `/recommendations` and enter: `"I'm hungry and want something spicy."`
+   - AI Engine analyzes dietary preference (Vegetarian), budget (₹120 limit), prep time (<15 min), and spice craving.
+   - **Top Recommendation**: *Paneer Kathi Roll + Lemon Soda*
+     - Price: **₹105** (within ₹120 budget)
+     - Prep Time: **8 mins** (within 10-min limit)
+     - Score: **94% Match**
+     - Macros: **420 kcal, 18g Protein, 52g Carbs, 16g Fat**
+     - Detailed explanation: Highlights spicy seasoning, high protein from fresh paneer, and refreshing citrus pairing.
+
+3. **Step 3: Dynamic Multi-Item Order Tray**
+   - Click **"Add to Order"** on the recommendation card.
+   - The global Order Drawer slides open.
+   - Real-time cumulative calculations update:
+     - Total: ₹105
+     - Nutrition: 420 kcal • 18g Protein • 52g Carbs • 16g Fat.
+
+4. **Step 4: Confirm Order & Nutrition Update**
+   - Click **"Confirm Order"**.
+   - Success toast appears: *"Order #... placed successfully!"*.
+   - Order history (`/student/orders`) records the new order with frozen macros.
+   - Today's Nutrition tracker (`/student/nutrition`) immediately updates:
+     - Calories: **1,270 kcal** (850 + 420)
+     - Protein: **66g** (48 + 18)
+     - Carbs: **157g** (105 + 52)
+     - Fat: **44g** (28 + 16)
+
+5. **Step 5: Cafeteria Owner Marks Item Unavailable**
+   - Click **"Switch to Owner"** in the top navbar (or log in as *Chef Ramesh* at `/login`).
+   - Navigate to `/owner/menu` or `/owner/availability`.
+   - Toggle **Paneer Kathi Roll** from **Available** to **Unavailable (Sold Out)**.
+   - Availability KPI immediately updates from 34/34 to 33/34.
+
+6. **Step 6: Student Re-query Reflects Live Stock**
+   - Click **"Switch to Student"** in the top navbar.
+   - Repeat the request: `"I'm hungry and want something spicy."`
+   - Engine filters out Paneer Kathi Roll deterministically (100% hard constraint).
+   - Generates next best available spicy alternative: *Masala Maggi + Lemon Soda* or *Chilli Paneer Dry*.
+
+---
+
+## 🔗 Running Services & Endpoints
+
+- **Frontend Application**: [http://localhost:3000](http://localhost:3000)
+  - Student Onboarding: `/student/onboarding`
+  - Student Dashboard: `/student/dashboard`
+  - Daily Nutrition Tracker: `/student/nutrition`
+  - Dynamic Order Tray: Global Drawer (`OrderDrawer`)
+  - Owner Dashboard: `/owner/dashboard`
+  - Owner Menu Management: `/owner/menu`
+  - Owner Availability Grid: `/owner/availability`
+  - Kitchen Queue: `/owner/orders`
+- **FastAPI Backend**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Interactive Swagger Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)

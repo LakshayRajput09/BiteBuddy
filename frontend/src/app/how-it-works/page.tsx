@@ -89,7 +89,7 @@ export default function HowItWorksPage() {
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-8 sm:p-10 space-y-6">
         <div className="flex items-center gap-2.5 text-emerald-800 font-bold text-sm">
           <ShieldCheck className="w-5 h-5 text-emerald-600" />
-          <span>Why CanteenAI is Safer than Generic AI Chatbots</span>
+          <span>Why BiteBuddy is Safer than Generic AI Chatbots</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 text-left">
@@ -133,7 +133,7 @@ export default function HowItWorksPage() {
             href="/chat"
             className="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
           >
-            <span>Try CanteenAI Now</span>
+            <span>Try BiteBuddy Now</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

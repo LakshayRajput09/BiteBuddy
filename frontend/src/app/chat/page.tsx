@@ -49,7 +49,7 @@ export default function ChatPage() {
     {
       id: "ai-welcome",
       sender: "ai",
-      text: "Hi 👋 I'm CanteenAI, your personal canteen assistant.\n\nTell me what you're in the mood for, your budget, or any nutrition targets!\n\nFor example:\n\"I'm hungry, have ₹120, want something spicy and vegetarian within 10 minutes.\"",
+      text: "Hi 👋 I'm BiteBuddy, your personal canteen assistant.\n\nTell me what you're in the mood for, your budget, or any nutrition targets!\n\nFor example:\n\"I'm hungry, have ₹120, want something spicy and vegetarian within 10 minutes.\"",
       timestamp: "Just now"
     }
   ]);
@@ -151,7 +151,7 @@ export default function ChatPage() {
             </div>
             <div>
               <h2 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-1.5">
-                <span>Chat with CanteenAI</span>
+                <span>Chat with BiteBuddy</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </h2>
               <p className="text-xs text-slate-500">Ask about cravings, budget limits, or macros</p>

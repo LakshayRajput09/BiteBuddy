@@ -161,7 +161,7 @@ export default function LandingPage() {
 
               {/* Bottom Quote Banner */}
               <div className="bg-white/90 backdrop-blur rounded-xl p-2.5 text-center text-xs font-semibold text-slate-700 border border-slate-100 mt-6">
-                💡 CanteenAI calculates budget, break time, and diet before suggesting.
+                💡 BiteBuddy calculates budget, break time, and diet before suggesting.
               </div>
             </div>
           </div>
@@ -192,7 +192,7 @@ export default function LandingPage() {
               Simple & Fast
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mt-2 tracking-tight">
-              How CanteenAI Works
+              How BiteBuddy Works
             </h2>
             <p className="text-sm text-slate-500 max-w-md mx-auto mt-2">
               From hungry student craving to your hot meal in 4 easy steps.
@@ -224,14 +224,14 @@ export default function LandingPage() {
             <div className="space-y-2">
               <h3 className="text-2xl sm:text-3xl font-black tracking-tight">Not sure what to eat?</h3>
               <p className="text-sm text-emerald-100 max-w-lg">
-                Tell CanteenAI how much money you have and how fast you need it — we'll do the rest!
+                Tell BiteBuddy how much money you have and how fast you need it — we'll do the rest!
               </p>
             </div>
             <Link
               href="/chat"
               className="px-6 py-3.5 rounded-2xl bg-white text-emerald-900 font-extrabold text-sm shadow-md hover:bg-emerald-50 transition-all flex items-center gap-2 flex-shrink-0"
             >
-              <span>Ask CanteenAI</span>
+              <span>Ask BiteBuddy</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

@@ -83,7 +83,7 @@ export default function OwnerAvailabilityPage() {
             Live Availability Controls
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Toggle item availability in real time. Unavailable dishes are immediately avoided by CanteenAI recommendations.
+            Toggle item availability in real time. Unavailable dishes are immediately avoided by BiteBuddy recommendations.
           </p>
         </div>
 
