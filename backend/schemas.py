@@ -144,6 +144,12 @@ class UserLogin(BaseModel):
 
 class DemoLoginRequest(BaseModel):
     role: str = Field(..., description="'student' or 'cafeteria_owner'")
+    name: Optional[str] = None
+
+
+class UpdateNameRequest(BaseModel):
+    user_id: str
+    name: str
 
 
 class UserOut(BaseModel):

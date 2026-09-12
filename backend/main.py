@@ -22,6 +22,7 @@ from schemas import (
     PreferenceQuery, FoodOut, RecommendationResult,
     ChatRequest, ChatResponse, AvailabilityUpdate, RecommendationCard,
     UserRegister, UserLogin, DemoLoginRequest, UserOut, AuthResponse,
+    UpdateNameRequest,
     StudentProfileOut, StudentProfileUpdate, StudentNutritionGoalOut,
     StudentNutritionGoalUpdate, StudentDailyNutrition, NutritionConsumedMeal,
     OrderCreate, OrderOut, OrderItemOut, FoodCreate, FoodUpdate, OwnerStats
@@ -439,10 +440,27 @@ def demo_login(data: DemoLoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Demo user not found")
 
+    if data.name and data.name.strip():
+        user.name = data.name.strip()
+        db.commit()
+        db.refresh(user)
+
     return AuthResponse(
         user=UserOut.model_validate(user),
         token=f"token_{user.id}"
     )
+
+
+@app.put("/auth/update-name", response_model=UserOut)
+def update_user_name(data: UpdateNameRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if data.name and data.name.strip():
+        user.name = data.name.strip()
+        db.commit()
+        db.refresh(user)
+    return UserOut.model_validate(user)
 
 
 @app.get("/auth/me", response_model=UserOut)

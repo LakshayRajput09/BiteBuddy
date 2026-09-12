@@ -156,6 +156,16 @@ def test_multi_role_auth(client):
     assert demo_o.json()["user"]["id"] == "owner_ramesh"
     assert demo_o.json()["user"]["role"] == "cafeteria_owner"
 
+    # 5. Demo login with custom name
+    demo_custom = client.post("/auth/demo-login", json={"role": "student", "name": "Aditya Roy"})
+    assert demo_custom.status_code == 200
+    assert demo_custom.json()["user"]["name"] == "Aditya Roy"
+
+    # 6. Update name endpoint
+    update_name_res = client.put("/auth/update-name", json={"user_id": "student_lakshay", "name": "Lakshay"})
+    assert update_name_res.status_code == 200
+    assert update_name_res.json()["name"] == "Lakshay"
+
 
 def test_orders_dynamic_macros_and_frozen_integrity(client):
     # Item 1: Paneer Kathi Roll (Price 75, Calories 340, Protein 18, Carbs 32, Fat 16)

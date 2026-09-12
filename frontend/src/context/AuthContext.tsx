@@ -8,11 +8,14 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  isNameModalOpen: boolean;
+  setIsNameModalOpen: (open: boolean) => void;
+  login: (email: string, pass: string, customName?: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, pass: string, role: UserRole) => Promise<{ success: boolean; error?: string }>;
-  demoLogin: (role: UserRole) => Promise<void>;
+  demoLogin: (role: UserRole, customName?: string) => Promise<void>;
   logout: () => void;
   switchRole: (newRole: UserRole) => Promise<void>;
+  updateUserName: (newName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -35,20 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(JSON.parse(savedUser));
         setToken(savedToken);
       } else {
-        // Default to demo student for frictionless initial exploration
-        const defaultStudent: User = {
-          id: "student_lakshay",
-          name: "Lakshay",
-          email: "student@example.com",
-          role: "student"
-        };
-        setUser(defaultStudent);
-        setToken("token_student_lakshay");
-        localStorage.setItem("canteen_user", JSON.stringify(defaultStudent));
-        localStorage.setItem("canteen_token", "token_student_lakshay");
+        // Keep user logged out
+        setUser(null);
+        setToken(null);
       }
     } catch (e) {
       console.error("Auth init error:", e);
+      setUser(null);
+      setToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -67,6 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user.role === "cafeteria_owner" && pathname.startsWith("/student")) {
         router.replace("/owner/dashboard");
       }
+      // Logged in users visiting /login get redirected to their dashboard
+      if (pathname === "/login") {
+        if (user.role === "cafeteria_owner") {
+          router.replace("/owner/dashboard");
+        } else {
+          router.replace("/student/dashboard");
+        }
+      }
     } else {
       // If logged out and trying to access protected routes
       if (pathname.startsWith("/student") || pathname.startsWith("/owner")) {
@@ -75,7 +81,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, pathname, isLoading, router]);
 
-  const login = async (email: string, pass: string) => {
+  const updateUserName = async (newName: string) => {
+    if (!user || !newName.trim()) return;
+    const trimmed = newName.trim();
+    const updatedUser = { ...user, name: trimmed };
+    setUser(updatedUser);
+    localStorage.setItem("canteen_user", JSON.stringify(updatedUser));
+
+    try {
+      await fetch(`${API_BASE}/auth/update-name`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, name: trimmed })
+      });
+      window.dispatchEvent(new CustomEvent("canteen_user_updated", { detail: updatedUser }));
+    } catch (e) {
+      console.error("Failed to sync name update to backend:", e);
+    }
+  };
+
+  const login = async (email: string, pass: string, customName?: string) => {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
@@ -87,10 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: err.detail || "Invalid credentials" };
       }
       const data = await res.json();
+      if (customName && customName.trim()) {
+        data.user.name = customName.trim();
+      }
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("canteen_user", JSON.stringify(data.user));
       localStorage.setItem("canteen_token", data.token);
+
+      if (customName && customName.trim()) {
+        await updateUserName(customName.trim());
+      }
 
       if (data.user.role === "cafeteria_owner") {
         router.push("/owner/dashboard");
@@ -131,19 +163,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const demoLogin = async (role: UserRole) => {
+  const demoLogin = async (role: UserRole, customName?: string) => {
     try {
+      const payload: any = { role };
+      if (customName && customName.trim()) {
+        payload.name = customName.trim();
+      }
       const res = await fetch(`${API_BASE}/auth/demo-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         const data = await res.json();
+        if (customName && customName.trim()) {
+          data.user.name = customName.trim();
+        }
         setUser(data.user);
         setToken(data.token);
         localStorage.setItem("canteen_user", JSON.stringify(data.user));
         localStorage.setItem("canteen_token", data.token);
+
         if (role === "cafeteria_owner") {
           router.push("/owner/dashboard");
         } else {
@@ -173,11 +213,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         token,
         isLoading,
+        isNameModalOpen,
+        setIsNameModalOpen,
         login,
         register,
         demoLogin,
         logout,
-        switchRole
+        switchRole,
+        updateUserName
       }}
     >
       {children}
@@ -192,4 +235,3 @@ export function useAuth() {
   }
   return context;
 }
-

@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/context/AuthContext";
 import { OrderProvider } from "@/context/OrderContext";
 import OrderDrawer from "@/components/OrderDrawer";
+import NamePromptModal from "@/components/NamePromptModal";
 
 export const metadata: Metadata = {
   title: "BiteBuddy — Good Food. Smarter Choices.",
@@ -29,6 +30,7 @@ export default function RootLayout({
               </main>
               <Footer />
               <OrderDrawer />
+              <NamePromptModal />
             </ToastProvider>
           </OrderProvider>
         </AuthProvider>

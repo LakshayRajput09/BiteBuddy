@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [canteenName, setCanteenName] = useState("");
+  const [demoName, setDemoName] = useState("Lakshay");
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,7 +42,7 @@ export default function LoginPage() {
         showToast(res.error || "Registration failed", "error");
       }
     } else {
-      const res = await login(email, password);
+      const res = await login(email, password, demoName || undefined);
       if (res.success) {
         showToast("Signed in successfully!");
       } else {
@@ -72,36 +73,77 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* 1-Click Fast Demo Logins Banner */}
-          <div className="p-3.5 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl space-y-2">
+          {/* 1-Click Fast Demo Logins Banner with Name Asking */}
+          <div className="p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                Quick Demo Accounts (Instant 1-Click Access)
+                Quick Demo Access (Instant 1-Click)
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 pt-0.5">
+
+            {/* Ask Name Input */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-emerald-900 flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-emerald-700" />
+                What is your name?
+              </label>
+              <input
+                type="text"
+                value={demoName}
+                onChange={(e) => setDemoName(e.target.value)}
+                placeholder="Enter your name (e.g. Lakshay, Priya, Alex)"
+                className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              />
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-emerald-700 font-medium">Quick pick:</span>
+                {["Lakshay", "Priya", "Alex", "Rohan"].map((quickName) => (
+                  <button
+                    key={quickName}
+                    type="button"
+                    onClick={() => setDemoName(quickName)}
+                    className={`text-[10px] px-2 py-0.5 rounded-md font-semibold transition-all ${
+                      demoName === quickName
+                        ? "bg-emerald-700 text-white shadow-2xs"
+                        : "bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-100/60"
+                    }`}
+                  >
+                    {quickName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => demoLogin("student")}
-                className="p-2.5 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold transition-all text-left shadow-sm flex items-center gap-2"
+                onClick={() => demoLogin("student", demoName || "Student")}
+                className="p-3 bg-white hover:bg-emerald-100/50 border border-emerald-200 text-emerald-950 rounded-xl text-xs font-bold transition-all text-left shadow-xs flex items-center gap-2.5 group"
               >
-                <GraduationCap className="w-4 h-4 text-emerald-700 shrink-0" />
-                <div>
-                  <span className="block font-bold">Student Demo</span>
-                  <span className="text-[10px] text-gray-500 block font-normal">Lakshay</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0 group-hover:bg-emerald-200 transition-colors">
+                  <GraduationCap className="w-4 h-4 text-emerald-800" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block font-bold text-slate-900 leading-tight">Student Demo</span>
+                  <span className="text-[10px] text-emerald-700 block font-semibold truncate">
+                    as {demoName || "Student"}
+                  </span>
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => demoLogin("cafeteria_owner")}
-                className="p-2.5 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold transition-all text-left shadow-sm flex items-center gap-2"
+                onClick={() => demoLogin("cafeteria_owner", demoName ? `Chef ${demoName}` : "Chef Ramesh")}
+                className="p-3 bg-white hover:bg-emerald-100/50 border border-emerald-200 text-emerald-950 rounded-xl text-xs font-bold transition-all text-left shadow-xs flex items-center gap-2.5 group"
               >
-                <Store className="w-4 h-4 text-emerald-700 shrink-0" />
-                <div>
-                  <span className="block font-bold">Owner Demo</span>
-                  <span className="text-[10px] text-gray-500 block font-normal">Chef Ramesh</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0 group-hover:bg-emerald-200 transition-colors">
+                  <Store className="w-4 h-4 text-emerald-800" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block font-bold text-slate-900 leading-tight">Owner Demo</span>
+                  <span className="text-[10px] text-emerald-700 block font-semibold truncate">
+                    as {demoName ? `Chef ${demoName}` : "Chef Ramesh"}
+                  </span>
                 </div>
               </button>
             </div>
