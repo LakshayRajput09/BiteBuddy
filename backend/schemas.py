@@ -30,6 +30,73 @@ class PreferenceQuery(BaseModel):
         return v
 
 
+class StructuredConstraints(BaseModel):
+    max_price: Optional[float] = Field(None, description="Maximum budget in INR")
+    max_preparation_time: Optional[int] = Field(None, description="Maximum preparation time in minutes")
+    diet: List[str] = Field(default_factory=list, description="Dietary restrictions: vegetarian, vegan, jain, non-vegetarian")
+    allergies: List[str] = Field(default_factory=list, description="Allergies to strictly exclude: nuts, dairy, egg, gluten, peanuts")
+    exclusions: List[str] = Field(default_factory=list, description="Specific ingredients or dishes to exclude: noodles, onion, garlic")
+
+    @field_validator("max_price")
+    @classmethod
+    def validate_max_price(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("Budget cannot be negative")
+        return v
+
+    @field_validator("max_preparation_time")
+    @classmethod
+    def validate_prep_time(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("Preparation time limit must be greater than 0")
+        return v
+
+
+class StructuredPreferences(BaseModel):
+    spicy: Optional[bool] = None
+    sweet: Optional[bool] = None
+    high_protein: Optional[bool] = None
+    low_calorie: Optional[bool] = None
+    cuisine: Optional[str] = None
+    mood: Optional[str] = None
+    craving: Optional[str] = None
+
+
+class StructuredIntent(BaseModel):
+    intent: str
+    target_item_name: Optional[str] = None
+    target_dish_b_name: Optional[str] = None
+    constraints: StructuredConstraints = Field(default_factory=StructuredConstraints)
+    preferences: StructuredPreferences = Field(default_factory=StructuredPreferences)
+
+
+class RemovedItem(BaseModel):
+    item_id: int
+    name: str
+    price: float
+    preparation_time: int
+    reason: str
+
+
+class ScoreEntry(BaseModel):
+    name: str
+    score: float
+    match_percentage: int
+    breakdown: Dict[str, float] = Field(default_factory=dict)
+    reasons: List[str] = Field(default_factory=list)
+
+
+class DebugInfo(BaseModel):
+    raw_message: str
+    detected_intent: str
+    extracted_constraints: Dict[str, Any]
+    extracted_preferences: Dict[str, Any]
+    filtered_items: List[str]
+    removed_items: List[RemovedItem]
+    final_scores: List[ScoreEntry]
+    top_3: List[str]
+
+
 class FoodOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -162,14 +229,19 @@ class ChatResponse(BaseModel):
     recommendation: Optional[RecommendationCard] = None
     combo: Optional[MealCombination] = None
     alternatives: List[RecommendationCard] = Field(default_factory=list)
+    recommendations: List[RecommendationCard] = Field(default_factory=list)
+    closest_match: Optional[RecommendationCard] = None
+    failing_constraints: Optional[Dict[str, Any]] = None
     explanation: Optional[str] = None
     session_id: str
     extracted_preferences: Optional[Dict[str, Any]] = None
     suggested_followups: List[str] = Field(default_factory=list)
+    quick_actions: List[str] = Field(default_factory=list)
     matched_items: List[FoodOut] = Field(default_factory=list)
     intent: Optional[str] = None
     comparison: Optional[FoodComparisonResult] = None
     order_action: Optional[OrderAction] = None
+    debug_info: Optional[DebugInfo] = None
     turn_count: int = 1
     conversation_stage: str = "initial"
 

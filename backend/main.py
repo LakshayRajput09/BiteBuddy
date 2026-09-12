@@ -26,11 +26,18 @@ from schemas import (
     UpdateNameRequest,
     StudentProfileOut, StudentProfileUpdate, StudentNutritionGoalOut,
     StudentNutritionGoalUpdate, StudentDailyNutrition, NutritionConsumedMeal,
-    OrderCreate, OrderOut, OrderItemOut, FoodCreate, FoodUpdate, OwnerStats
+    OrderCreate, OrderOut, OrderItemOut, FoodCreate, FoodUpdate, OwnerStats,
+    StructuredConstraints, StructuredPreferences, StructuredIntent,
+    RemovedItem, ScoreEntry, DebugInfo
 )
 from engine import (
     generate_recommendations,
-    check_conflicts
+    check_conflicts,
+    filter_foods,
+    rank_foods,
+    get_top_recommendations,
+    diagnose_no_match,
+    find_meal_combination
 )
 from llm_service import (
     extract_user_preferences,
@@ -44,7 +51,9 @@ from llm_service import (
     check_relevance,
     generate_food_comparison,
     handle_food_reference_question,
-    find_food_by_name
+    find_food_by_name,
+    parse_to_structured_intent,
+    generate_grounded_explanation
 )
 from session_store import session_store
 from contextlib import asynccontextmanager
@@ -185,23 +194,21 @@ async def chat_endpoint(
 
     all_foods = db.query(Food).all()
 
-    # Preload student profile preferences if authenticated
+    # Optional explicit profile lookup (NEVER infer defaults for open queries per Phase 3)
     student_id = request.student_id or (session.session_id if session.session_id.startswith("student_") else None)
-    if student_id:
+    if student_id and any(w in raw_message.lower() for w in ["my profile", "my usual", "recommend for me", "my preferences"]):
         student_profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
         student_goal = db.query(StudentNutritionGoal).filter(StudentNutritionGoal.user_id == student_id).first()
         if student_profile:
-            if session.preferences.budget is None and student_profile.budget:
-                session.preferences.budget = student_profile.budget
-            if session.preferences.diet is None and student_profile.dietary_preferences:
-                session.preferences.diet = student_profile.dietary_preferences.split(",")[0].strip()
-            if not session.preferences.taste and student_profile.taste_preferences:
-                session.preferences.taste = [t.strip() for t in student_profile.taste_preferences.split(",") if t.strip()]
-            if session.preferences.time_limit is None and student_profile.time_limit:
-                session.preferences.time_limit = student_profile.time_limit
+            if session.constraints.max_price is None and student_profile.budget:
+                session.constraints.max_price = student_profile.budget
+            if not session.constraints.diet and student_profile.dietary_preferences:
+                session.constraints.diet = [d.strip() for d in student_profile.dietary_preferences.split(",") if d.strip()]
+            if session.constraints.max_preparation_time is None and student_profile.time_limit:
+                session.constraints.max_preparation_time = student_profile.time_limit
         if student_goal and student_goal.enabled:
-            if student_goal.protein_goal >= 100 and not session.preferences.protein_goal:
-                session.preferences.protein_goal = "high"
+            if student_goal.protein_goal >= 100:
+                session.pref_settings.high_protein = True
 
     # 1. Relevance check: Ensure query is relevant to BiteBuddy college canteen system
     is_irrelevant, reason = check_relevance(raw_message)
@@ -226,9 +233,20 @@ async def chat_endpoint(
             conversation_stage=session.conversation_stage
         )
 
-    # 2. Invalid input validation (e.g. negative budget)
+    # 2. Extract structured intent and validate constraints (Phase 3)
     try:
-        extracted = await extract_user_preferences(raw_message)
+        structured_intent = parse_to_structured_intent(raw_message)
+        extracted = PreferenceQuery(
+            budget=structured_intent.constraints.max_price,
+            time_limit=structured_intent.constraints.max_preparation_time,
+            diet=structured_intent.constraints.diet[0] if structured_intent.constraints.diet else None,
+            exclusions=structured_intent.constraints.exclusions,
+            taste=["spicy"] if structured_intent.preferences.spicy is True else (["mild"] if structured_intent.preferences.spicy is False else []),
+            cuisine=structured_intent.preferences.cuisine,
+            mood=structured_intent.preferences.mood,
+            cravings=[structured_intent.preferences.craving] if structured_intent.preferences.craving else [],
+            protein_goal="high" if structured_intent.preferences.high_protein else None
+        )
     except ValueError as ve:
         return ChatResponse(
             reply_text=f"Validation error: {str(ve)}. Please provide a valid value.",
@@ -528,29 +546,29 @@ async def chat_endpoint(
             conversation_stage="initial"
         )
 
+    # 14. Update structured session state with newly extracted constraints & preferences (Phase 15 & 16)
     if any(p in lower for p in ["make it cheaper", "cheaper", "something cheaper"]):
-        current_b = session.preferences.budget or 100.0
-        session.preferences.budget = max(35.0, round(current_b * 0.75))
+        current_b = session.constraints.max_price or 100.0
+        structured_intent.constraints.max_price = max(35.0, round(current_b * 0.75))
 
     if any(p in lower for p in ["something faster", "faster", "quicker", "less time"]):
-        current_t = session.preferences.time_limit or 15
-        session.preferences.time_limit = min(current_t, 8)
+        current_t = session.constraints.max_preparation_time or 15
+        structured_intent.constraints.max_preparation_time = min(current_t, 8)
 
     if any(p in lower for p in ["more protein", "higher protein", "give me more protein"]):
-        session.preferences.protein_goal = "high"
+        structured_intent.preferences.high_protein = True
 
     if any(p in lower for p in ["not spicy", "i don't want spicy", "less spicy", "no spicy", "mild"]):
-        if "spicy" in (session.preferences.taste or []):
-            session.preferences.taste.remove("spicy")
-        if "mild" not in (session.preferences.taste or []):
-            session.preferences.taste.append("mild")
+        structured_intent.preferences.spicy = False
 
-    # 14. Merge into session preferences for conversational refinement
-    merged_prefs = session.update_preferences(extracted)
-    session.history.append({"user": raw_message, "extracted": extracted.model_dump()})
+    session_constraints, session_prefs = session.update_structured_state(
+        structured_intent.constraints,
+        structured_intent.preferences
+    )
+    session.history.append({"user": raw_message, "structured_intent": structured_intent.model_dump()})
 
     # Check for contradictions
-    conflict_msg = check_conflicts(merged_prefs)
+    conflict_msg = check_conflicts(session.preferences)
     if conflict_msg:
         followups = generate_suggested_followups(clarification_type="conflict")
         return ChatResponse(
@@ -560,64 +578,114 @@ async def chat_endpoint(
             clarification_type="conflict",
             suggested_followups=followups,
             session_id=session.session_id,
-            extracted_preferences=merged_prefs.model_dump(),
+            extracted_preferences=session.preferences.model_dump(),
             turn_count=session.turn_count,
             conversation_stage=session.conversation_stage
         )
 
-    # 15. Execute deterministic recommendation engine (Section 7 & 8)
-    result = generate_recommendations(all_foods, merged_prefs)
-    session.last_result = result
+    # 15. Execute deterministic hard filters (Phase 4, 5, 8)
+    surviving_foods, removed_log = filter_foods(all_foods, session_constraints)
 
-    # If no items found
-    if not result.top_pick:
-        followups = generate_suggested_followups(clarification_type="no_match")
+    # 16. If no items match hard constraints (Phase 13 & 14)
+    if not surviving_foods:
+        diagnosis = diagnose_no_match(all_foods, session_constraints, session_prefs)
+        explanation = generate_grounded_explanation(
+            [],
+            structured_intent,
+            failing_constraints=diagnosis["failures"],
+            closest_match=diagnosis.get("closest_match")
+        )
+
+        debug_info = DebugInfo(
+            raw_message=raw_message,
+            detected_intent=intent,
+            extracted_constraints=session_constraints.model_dump(),
+            extracted_preferences=session_prefs.model_dump(),
+            filtered_items=[],
+            removed_items=[RemovedItem(**r) for r in removed_log],
+            final_scores=[],
+            top_3=[]
+        )
+
         return ChatResponse(
-            reply_text=result.explanation,
+            reply_text=explanation,
             response_type=ChatResponseType.NO_MATCH,
             is_clarification=True,
             clarification_type="no_match",
+            failing_constraints=diagnosis["failures"],
+            closest_match=diagnosis.get("closest_match"),
+            quick_actions=diagnosis["actions"],
+            suggested_followups=diagnosis["actions"],
+            explanation=explanation,
+            debug_info=debug_info,
+            intent=intent,
             session_id=session.session_id,
-            explanation=result.explanation,
-            suggested_followups=followups,
-            extracted_preferences=merged_prefs.model_dump(),
+            extracted_preferences=session.preferences.model_dump(),
             turn_count=session.turn_count,
             conversation_stage=session.conversation_stage
         )
 
-    # Store Top 3 recommendations in session memory for future references
-    top_3_items = [result.top_pick.item] + [alt.item for alt in result.alternatives]
-    session.set_last_recommendations(top_3_items)
+    # 17. Score and rank surviving items (Phase 11 & 17)
+    ranked_cards = rank_foods(surviving_foods, session_constraints, session_prefs)
+    top_cards = get_top_recommendations(ranked_cards, max_count=3)
 
-    # 16. Build explanation text
-    turn_type = "refinement" if session.turn_count > 1 else "initial"
-    explanation_text = generate_explanation_text(
-        result.top_pick,
-        result.combo,
-        merged_prefs,
-        turn_type=turn_type,
-        unavailable_notice=result.relaxation_notes
+    # Store Top 3 recommendations in session memory for future references (Phase 12)
+    top_items = [c.item for c in top_cards]
+    session.set_last_recommendations(top_items)
+
+    # Combinations (Phase 25)
+    top_food_obj = next(f for f in surviving_foods if f.item_id == top_cards[0].item.item_id)
+    combo = find_meal_combination(top_food_obj, all_foods, session.preferences)
+
+    # 18. Build grounded explanation (Phase 18 & 26)
+    explanation_text = generate_grounded_explanation(
+        top_cards,
+        structured_intent,
+        combo=combo
     )
 
     followups = generate_suggested_followups(
-        top_pick=result.top_pick,
-        combo=result.combo,
-        query=merged_prefs,
+        top_pick=top_cards[0],
+        combo=combo,
+        query=session.preferences,
         intent="recommendation"
+    )
+
+    # Phase 23: Build DebugInfo payload
+    debug_info = DebugInfo(
+        raw_message=raw_message,
+        detected_intent=intent,
+        extracted_constraints=session_constraints.model_dump(),
+        extracted_preferences=session_prefs.model_dump(),
+        filtered_items=[f.name for f in surviving_foods],
+        removed_items=[RemovedItem(**r) for r in removed_log],
+        final_scores=[
+            ScoreEntry(
+                name=c.item.name,
+                score=c.score,
+                match_percentage=c.match_percentage,
+                breakdown=c.score_breakdown,
+                reasons=c.reasons
+            ) for c in ranked_cards
+        ],
+        top_3=[c.item.name for c in top_cards]
     )
 
     return ChatResponse(
         reply_text=explanation_text,
         response_type=ChatResponseType.FOOD_RECOMMENDATION,
         is_clarification=False,
-        recommendation=result.top_pick,
-        combo=result.combo,
-        alternatives=result.alternatives,
-        explanation=result.explanation,
+        recommendation=top_cards[0],
+        combo=combo,
+        alternatives=top_cards[1:],
+        recommendations=top_cards,
+        explanation=explanation_text,
         suggested_followups=followups,
+        quick_actions=["Cheaper", "Faster", "More Protein", "Pair with a drink"],
+        debug_info=debug_info,
         intent=intent,
         session_id=session.session_id,
-        extracted_preferences=merged_prefs.model_dump(),
+        extracted_preferences=session.preferences.model_dump(),
         turn_count=session.turn_count,
         conversation_stage=session.conversation_stage
     )

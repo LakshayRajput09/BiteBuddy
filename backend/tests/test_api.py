@@ -541,6 +541,131 @@ def test_chat_greeting_and_help(client):
     assert "Recommend Meals" in res_help.json()["reply_text"]
 
 
+# ==================================================
+# Phase 21: 15 Real Database Scenario Tests
+# ==================================================
+
+def test_phase_21_scenarios(client):
+    # Reset all items to available
+    for i in range(1, 35):
+        client.put(f"/menu/{i}/availability", json={"available": True})
+
+    # TEST 1: User: "What should I eat?" -> Top available relevant foods
+    res1 = client.post("/chat", json={"message": "What should I eat?", "session_id": "p21_t1"})
+    assert res1.status_code == 200
+    d1 = res1.json()
+    assert d1["recommendation"] is not None
+    assert d1["recommendation"]["item"]["available"] is True
+    assert len(d1["recommendations"]) <= 3
+
+    # TEST 2: User: "Something under ₹50." -> EVERY recommendation <= ₹50
+    res2 = client.post("/chat", json={"message": "Something under ₹50.", "session_id": "p21_t2"})
+    assert res2.status_code == 200
+    d2 = res2.json()
+    assert d2["recommendation"] is not None
+    for rec in d2["recommendations"]:
+        assert rec["item"]["price"] <= 50.0
+
+    # TEST 3: User: "I'm vegetarian." -> NO non-vegetarian foods
+    res3 = client.post("/chat", json={"message": "I'm vegetarian.", "session_id": "p21_t3"})
+    assert res3.status_code == 200
+    d3 = res3.json()
+    assert d3["recommendation"] is not None
+    for rec in d3["recommendations"]:
+        assert rec["item"]["vegetarian"] is True
+
+    # TEST 4: User: "Vegetarian and under ₹50." -> intersection of both filters
+    res4 = client.post("/chat", json={"message": "Vegetarian and under ₹50.", "session_id": "p21_t4"})
+    assert res4.status_code == 200
+    d4 = res4.json()
+    assert d4["recommendation"] is not None
+    for rec in d4["recommendations"]:
+        assert rec["item"]["vegetarian"] is True
+        assert rec["item"]["price"] <= 50.0
+
+    # TEST 5: User: "Something spicy under ₹100." -> spicy AND price <= 100
+    res5 = client.post("/chat", json={"message": "Something spicy under ₹100.", "session_id": "p21_t5"})
+    assert res5.status_code == 200
+    d5 = res5.json()
+    assert d5["recommendation"] is not None
+    assert d5["recommendation"]["item"]["spicy"] is True
+    assert d5["recommendation"]["item"]["price"] <= 100.0
+
+    # TEST 6: User: "I have 5 minutes." -> prep_time <= 5
+    res6 = client.post("/chat", json={"message": "I have 5 minutes.", "session_id": "p21_t6"})
+    assert res6.status_code == 200
+    d6 = res6.json()
+    assert d6["recommendation"] is not None
+    for rec in d6["recommendations"]:
+        assert rec["item"]["preparation_time"] <= 5
+
+    # TEST 7: User: "High protein." -> rank by protein among available foods
+    res7 = client.post("/chat", json={"message": "High protein.", "session_id": "p21_t7"})
+    assert res7.status_code == 200
+    d7 = res7.json()
+    assert d7["recommendation"] is not None
+    assert d7["recommendation"]["item"]["protein"] >= 14.0
+
+    # TEST 8: User: "Show me something cheaper." -> retain previous constraints
+    # Turn A: budget 120
+    client.post("/chat", json={"message": "I have ₹120 and want vegetarian", "session_id": "p21_t8"})
+    res8 = client.post("/chat", json={"message": "Show me something cheaper", "session_id": "p21_t8"})
+    assert res8.status_code == 200
+    d8 = res8.json()
+    assert d8["recommendation"] is not None
+    assert d8["recommendation"]["item"]["vegetarian"] is True
+    assert d8["recommendation"]["item"]["price"] <= 95.0
+
+    # TEST 9: User: "Is Paneer Roll available?" -> database availability value
+    res9 = client.post("/chat", json={"message": "Is Paneer Roll available?"})
+    assert res9.status_code == 200
+    assert "available" in res9.json()["reply_text"].lower()
+
+    # TEST 10: User: "How much protein is in Paneer Roll?" -> database protein value
+    res10 = client.post("/chat", json={"message": "How much protein is in Paneer Roll?"})
+    assert res10.status_code == 200
+    # Paneer Kathi Roll has 18g protein
+    assert "18" in res10.json()["reply_text"]
+
+    # TEST 11: User: "Maggi vs Paneer Roll." -> database values only
+    res11 = client.post("/chat", json={"message": "Maggi vs Paneer Roll"})
+    assert res11.status_code == 200
+    assert res11.json()["response_type"] == "COMPARISON"
+    assert res11.json()["comparison"] is not None
+
+    # TEST 12: User: "Give me a meal under ₹100." -> valid combo <= ₹100
+    res12 = client.post("/chat", json={"message": "Give me a meal under ₹100."})
+    assert res12.status_code == 200
+    d12 = res12.json()
+    if d12.get("combo"):
+        assert d12["combo"]["total_price"] <= 100.0
+
+    # TEST 13: User: "I'm allergic to peanuts." -> foods containing peanuts/nuts excluded
+    res13 = client.post("/chat", json={"message": "I'm allergic to peanuts."})
+    assert res13.status_code == 200
+    d13 = res13.json()
+    for rec in d13["recommendations"]:
+        assert rec["item"]["contains_nuts"] is False
+        assert "peanut" not in rec["item"]["ingredients"].lower()
+
+    # TEST 14: User: "Give me something under ₹10 with 50g protein." -> No fake recommendation if none exists
+    res14 = client.post("/chat", json={"message": "Give me something under ₹10 with 50g protein."})
+    assert res14.status_code == 200
+    d14 = res14.json()
+    assert d14["response_type"] == "NO_MATCH"
+    assert d14["recommendations"] == []
+    assert d14["failing_constraints"] is not None
+    assert "budget" in d14["failing_constraints"]
+    assert len(d14["quick_actions"]) > 0
+
+    # TEST 15: User: "I want something that doesn't exist." -> honest no-result response
+    res15 = client.post("/chat", json={"message": "I want something that doesn't exist under ₹5."})
+    assert res15.status_code == 200
+    d15 = res15.json()
+    assert d15["response_type"] == "NO_MATCH"
+    assert d15["recommendations"] == []
+
+
 
 
 

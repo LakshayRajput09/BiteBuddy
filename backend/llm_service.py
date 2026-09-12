@@ -5,7 +5,8 @@ from typing import Optional, Dict, Any, Tuple, List
 import httpx
 from schemas import (
     PreferenceQuery, RecommendationCard, MealCombination,
-    FoodComparisonResult, FoodOut, ChatIntent, ChatResponseType, OrderAction
+    FoodComparisonResult, FoodOut, ChatIntent, ChatResponseType, OrderAction,
+    StructuredConstraints, StructuredPreferences, StructuredIntent
 )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -64,8 +65,9 @@ def extract_preferences_rule_based(message: str) -> PreferenceQuery:
     budget_match = (
         re.search(r"(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)", lower) or
         re.search(r"(\d+(?:\.\d+)?)\s*(?:₹|rs\.?|rupees|bucks)", lower) or
-        re.search(r"(?:under|below|within|budget(?:\s*of|\s*is|\s*:)?|max(?:imum)?|have)\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)", lower) or
-        re.search(r"\b(\d{2,4})\s*(?:budget|only)\b", lower)
+        re.search(r"(?:under|below|within|budget(?:\s*of|\s*is|\s*:)?|max(?:imum)?)\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)(?!\s*(?:mins?|minutes?|m\b|hours?|hrs?))", lower) or
+        re.search(r"(?:have)\s*(?:₹|rs\.?)\s*(\d+(?:\.\d+)?)", lower) or
+        re.search(r"\b(\d{2,4})\s*(?:budget|only)\b(?!\s*(?:mins?|minutes?|m\b))", lower)
     )
     if budget_match:
         try:
@@ -414,6 +416,209 @@ def extract_comparison_targets(message: str) -> Tuple[Optional[str], Optional[st
     if m:
         return m.group(1).strip(), m.group(2).strip("? ").strip()
     return None, None
+
+
+def parse_to_structured_intent(message: str) -> StructuredIntent:
+    """
+    Phase 3: Converts natural language into strict structured intent and constraints.
+    Unknown values MUST be null/empty. Never infer missing information.
+    """
+    text = message.strip()
+    lower = text.lower()
+
+    if re.search(r"-\s*₹?\s*\d+|₹\s*-\s*\d+|budget\s*:\s*-\d+", lower):
+        raise ValueError("Budget cannot be negative")
+
+    # 1. Classify intent
+    intent = classify_chat_intent(message)
+
+    # 2. Budget constraint (max_price)
+    max_price = None
+    budget_match = (
+        re.search(r"(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)", lower) or
+        re.search(r"(\d+(?:\.\d+)?)\s*(?:₹|rs\.?|rupees|bucks)", lower) or
+        re.search(r"(?:under|below|within|budget(?:\s*of|\s*is|\s*:)?|max(?:imum)?)\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)(?!\s*(?:mins?|minutes?|m\b|hours?|hrs?))", lower) or
+        re.search(r"(?:have)\s*(?:₹|rs\.?)\s*(\d+(?:\.\d+)?)", lower) or
+        re.search(r"\b(\d{2,4})\s*(?:budget|only)\b(?!\s*(?:mins?|minutes?|m\b))", lower)
+    )
+    if budget_match:
+        try:
+            max_price = float(budget_match.group(1))
+        except (ValueError, TypeError):
+            max_price = None
+
+    # 3. Preparation time constraint (max_preparation_time)
+    max_prep_time = None
+    time_match = (
+        re.search(r"(\d+)\s*(?:mins?|minutes?)\b", lower) or
+        re.search(r"(?:in|within)\s*(\d+)\s*(?:mins?|minutes?|m)\b", lower) or
+        re.search(r"(\d+)\s*m\b(?:\s*break|\s*limit)", lower)
+    )
+    if time_match:
+        try:
+            max_prep_time = int(time_match.group(1))
+        except (ValueError, TypeError):
+            max_prep_time = None
+
+    # 4. Dietary constraints (diet: List[str])
+    diets = []
+    if re.search(r"\b(vegan|plant-based)\b", lower):
+        diets.append("vegan")
+    elif re.search(r"\b(jain)\b", lower):
+        diets.append("jain")
+    elif re.search(r"\b(non-?veg|non-?vegetarian)\b", lower):
+        diets.append("non-vegetarian")
+    elif re.search(r"\b(pure\s+veg|vegetarian|\bveg\b)\b", lower) and not re.search(r"\b(non-?veg|non-?vegetarian)\b", lower):
+        diets.append("vegetarian")
+
+    # 5. Allergies (allergies: List[str])
+    allergies = []
+    if re.search(r"\b(peanut|peanuts|groundnut|nut|nuts|walnut|cashew|almond)\s*(?:allergy|allergic)\b", lower) or \
+       re.search(r"\ballergic\s+to\s+(?:peanuts?|nuts?|groundnuts?|walnuts?)\b", lower):
+        allergies.append("nuts")
+        allergies.append("peanuts")
+    if re.search(r"\b(dairy|milk|lactose)\s*(?:allergy|allergic|intoleran(?:t|ce))\b", lower) or \
+       re.search(r"\ballergic\s+to\s+(?:dairy|milk|lactose)\b", lower):
+        allergies.append("dairy")
+    if re.search(r"\b(gluten|wheat)\s*(?:allergy|allergic|intoleran(?:t|ce)|celiac)\b", lower) or \
+       re.search(r"\ballergic\s+to\s+(?:gluten|wheat)\b", lower):
+        allergies.append("gluten")
+    if re.search(r"\begg\s*(?:allergy|allergic)\b", lower) or \
+       re.search(r"\ballergic\s+to\s+eggs?\b", lower):
+        allergies.append("egg")
+
+    # 6. Exclusions (exclusions: List[str])
+    exclusions = []
+    excl_patterns = [
+        r"(?:no|without|skip|exclude|avoid|don'?t\s+want)\s+([a-zA-Z]+)",
+        r"not\s+([a-zA-Z]+)"
+    ]
+    for pattern in excl_patterns:
+        for m in re.finditer(pattern, lower):
+            word = m.group(1).strip()
+            if word in EXCLUSION_WORDS or any(ex in word for ex in EXCLUSION_WORDS):
+                if word not in exclusions:
+                    exclusions.append(word)
+
+    # 7. Preferences (spicy, sweet, high_protein, low_calorie, cuisine, mood, craving)
+    spicy = None
+    if re.search(r"\b(not\s+spicy|no\s+spicy|mild|non-spicy|less\s+spicy|i\s+don'?t\s+want\s+spicy)\b", lower):
+        spicy = False
+    elif re.search(r"\b(spicy|teekha|hot|masaledar|chilli)\b", lower):
+        spicy = True
+
+    sweet = True if re.search(r"\b(sweet|meetha|dessert)\b", lower) else None
+    high_protein = True if re.search(r"\b(high\s+protein|more\s+protein|protein\s+rich|protein)\b", lower) else None
+    low_calorie = True if re.search(r"\b(low\s+calorie|light\s+meal|healthy|diet\s+food)\b", lower) else None
+
+    cuisine = None
+    if re.search(r"\b(south indian|dosa|idli|sambar)\b", lower):
+        cuisine = "South Indian"
+    elif re.search(r"\b(chinese|indo-chinese|hakka|schezwan|manchurian)\b", lower):
+        cuisine = "Indo-Chinese"
+    elif re.search(r"\b(north indian|punjabi|mughlai|biryani)\b", lower):
+        cuisine = "North Indian"
+
+    mood = None
+    for pattern, mood_name in MOOD_PATTERNS:
+        if re.search(pattern, lower):
+            mood = mood_name
+            break
+
+    craving = None
+    for pattern, craving_name in CRAVING_PATTERNS:
+        if re.search(pattern, lower):
+            if not re.search(rf"(?:no|don'?t\s+want|without|exclude|not)\s+{craving_name}", lower):
+                craving = craving_name
+                break
+
+    target_a, target_b = extract_comparison_targets(message)
+
+    return StructuredIntent(
+        intent=intent,
+        target_item_name=target_a,
+        target_dish_b_name=target_b,
+        constraints=StructuredConstraints(
+            max_price=max_price,
+            max_preparation_time=max_prep_time,
+            diet=diets,
+            allergies=allergies,
+            exclusions=exclusions
+        ),
+        preferences=StructuredPreferences(
+            spicy=spicy,
+            sweet=sweet,
+            high_protein=high_protein,
+            low_calorie=low_calorie,
+            cuisine=cuisine,
+            mood=mood,
+            craving=craving
+        )
+    )
+
+
+def generate_grounded_explanation(
+    recommendations: List[RecommendationCard],
+    query_intent: StructuredIntent,
+    failing_constraints: Optional[Dict[str, Any]] = None,
+    closest_match: Optional[RecommendationCard] = None,
+    combo: Optional[MealCombination] = None
+) -> str:
+    """
+    Phase 18 & Phase 26: Menu-grounded, concise explanation.
+    Never invents items, prices, calories, or availability.
+    """
+    if not recommendations:
+        if failing_constraints:
+            parts = ["I couldn't find an available canteen item that satisfies all of those requirements:"]
+            if "budget" in failing_constraints:
+                b = failing_constraints["budget"]
+                parts.append(f"• **Budget**: ₹{int(b['user_budget'])} (lowest available item is ₹{int(b['lowest_available'])})")
+            if "time" in failing_constraints:
+                t = failing_constraints["time"]
+                parts.append(f"• **Time**: {t['user_time']} mins (fastest items take {t['fastest_available']} mins)")
+            if "diet" in failing_constraints:
+                d = failing_constraints["diet"]
+                parts.append(f"• **Diet**: {d.get('message', 'No dishes match diet')}")
+            if "protein" in failing_constraints:
+                p = failing_constraints["protein"]
+                parts.append(f"• **Goal**: High protein (max canteen item has {int(p['highest_available'])}g)")
+
+            if closest_match:
+                item = closest_match.item
+                diff_note = ", ".join(closest_match.reasons)
+                parts.append(f"\n**Closest available option**:\n• **{item.name}** — ₹{int(item.price)} ({diff_note})")
+
+            parts.append("\nWould you like to increase your budget or preparation time?")
+            return "\n".join(parts)
+        else:
+            return "I couldn't find any available canteen item matching all your criteria. Try adjusting your budget, time limit, or restrictions."
+
+    top_card = recommendations[0]
+    top_item = top_card.item
+
+    lines = []
+    lines.append("Got it! Here are the best available options from our canteen:")
+    lines.append("")
+    lines.append(f"🌟 **Top Pick: {top_item.name}**")
+    lines.append(f"₹{int(top_item.price)} • {top_item.preparation_time} min • {int(top_item.calories or 0)} kcal • {int(top_item.protein or 0)}g protein • **{top_card.match_percentage}% Match**")
+    if top_card.reasons:
+        lines.append("• " + " • ".join(top_card.reasons[:3]))
+
+    if combo:
+        lines.append("")
+        lines.append(f"💡 **Recommended Combo**: Pair with **{combo.side_item.name}** for a complete meal (₹{int(combo.total_price)} total, {combo.max_prep_time}m prep).")
+
+    if len(recommendations) > 1:
+        lines.append("")
+        lines.append("**Other great alternatives**:")
+        for alt in recommendations[1:3]:
+            lines.append(f"• **{alt.item.name}** (₹{int(alt.item.price)} • {alt.item.preparation_time} min • {alt.match_percentage}% Match)")
+
+    lines.append("")
+    lines.append("Want something cheaper, faster, or higher in protein?")
+
+    return "\n".join(lines)
 
 
 def find_food_by_name(text: str, foods: List[Any]) -> Optional[Any]:
@@ -1253,13 +1458,13 @@ def check_unavailable_or_off_menu(message: str, foods: List[Any]) -> Optional[Tu
     # C. General food inquiry pattern: "do you have X", "is X available", "can I get X", "i want X"
     inquiry_patterns = [
         r"\b(?:do you (?:have|serve|make)|is there|can i (?:get|have|order)|got any|any)\s+([a-z\s]+?)(?:\s+available|\s+on the menu|\s+in (?:the )?canteen|\s+today|\?|$)",
-        r"\b(?:i want|give me|craving|looking for|order)\s+(?:a|an|some)?\s*([a-z\s]+?)(?:\s+under|\s+below|\s+within|\s+for|\s+with|\s+in|\.|\?|$)"
+        r"\b(?:i want|give me|craving|looking for|order)\s+(?:a\s+|an\s+|some\s+)?([a-z\s]+?)(?:\s+under|\s+below|\s+within|\s+for|\s+with|\s+in|\.|\?|$)"
     ]
 
     GENERIC_WORDS = {
-        "food", "something", "anything", "meal", "lunch", "dinner", "breakfast", "snack",
+        "food", "something", "anything", "thing", "things", "one", "meal", "lunch", "dinner", "breakfast", "snack",
         "quick bite", "healthy", "spicy", "sweet", "tasty", "hot", "cold", "vegetarian",
-        "non-vegetarian", "vegan", "jain", "cheap", "best", "option", "options", "items", "dishes",
+        "non-vegetarian", "vegan", "jain", "cheap", "best", "option", "options", "items", "dishes", "dish",
         "recommendation", "suggestions", "drinks", "beverages", "desserts", "sweets"
     }
 

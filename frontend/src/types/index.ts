@@ -67,6 +67,33 @@ export interface OrderAction {
   total_price: number;
 }
 
+export interface RemovedItemData {
+  item_id: number;
+  name: string;
+  price: number;
+  preparation_time: number;
+  reason: string;
+}
+
+export interface ScoreEntryData {
+  name: string;
+  score: number;
+  match_percentage: number;
+  breakdown: Record<string, number>;
+  reasons: string[];
+}
+
+export interface DebugInfoData {
+  raw_message: string;
+  detected_intent: string;
+  extracted_constraints: Record<string, any>;
+  extracted_preferences: Record<string, any>;
+  filtered_items: string[];
+  removed_items: RemovedItemData[];
+  final_scores: ScoreEntryData[];
+  top_3: string[];
+}
+
 export interface ChatResponseData {
   reply_text: string;
   response_type?: string;
@@ -75,14 +102,19 @@ export interface ChatResponseData {
   recommendation?: RecommendationCardData | null;
   combo?: MealCombinationData | null;
   alternatives: RecommendationCardData[];
+  recommendations?: RecommendationCardData[];
+  closest_match?: RecommendationCardData | null;
+  failing_constraints?: Record<string, any> | null;
   explanation?: string | null;
   session_id: string;
   extracted_preferences?: Record<string, any> | null;
   suggested_followups?: string[];
+  quick_actions?: string[];
   matched_items?: FoodItem[];
   intent?: string | null;
   comparison?: FoodComparisonResult | null;
   order_action?: OrderAction | null;
+  debug_info?: DebugInfoData | null;
   turn_count?: number;
   conversation_stage?: string;
 }
@@ -96,14 +128,19 @@ export interface ChatMessage {
   recommendation?: RecommendationCardData | null;
   combo?: MealCombinationData | null;
   alternatives?: RecommendationCardData[];
+  recommendations?: RecommendationCardData[];
+  closest_match?: RecommendationCardData | null;
+  failing_constraints?: Record<string, any> | null;
   isClarification?: boolean;
   clarificationType?: string | null;
   extractedPreferences?: Record<string, any> | null;
   suggestedFollowups?: string[];
+  quick_actions?: string[];
   matchedItems?: FoodItem[];
   intent?: string | null;
   comparison?: FoodComparisonResult | null;
   orderAction?: OrderAction | null;
+  debug_info?: DebugInfoData | null;
   turnCount?: number;
   conversationStage?: string;
 }
