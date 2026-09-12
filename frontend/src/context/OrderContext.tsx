@@ -18,6 +18,8 @@ interface OrderContextType {
   totalProtein: number;
   totalCarbs: number;
   totalFat: number;
+  totalItems: number;
+  toggleDrawer: () => void;
   placeOrder: () => Promise<boolean>;
   isPlacingOrder: boolean;
   orderSuccessMessage: string | null;
@@ -135,6 +137,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const toggleDrawer = () => setIsDrawerOpen((prev) => !prev);
+  const totalItems = useMemo(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
+
   return (
     <OrderContext.Provider
       value={{
@@ -146,6 +151,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         isDrawerOpen,
         openDrawer,
         closeDrawer,
+        toggleDrawer,
+        totalItems,
         totalPrice,
         totalCalories,
         totalProtein,

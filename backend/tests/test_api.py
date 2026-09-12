@@ -300,3 +300,37 @@ def test_section_28_demo_scenario(client):
     client.put("/menu/1/availability", json={"available": True})
 
 
+def test_chat_greetings_and_inquiries(client):
+    # 1. Greeting intent
+    res = client.post("/chat", json={"message": "Hello!"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "greeting"
+    assert "BiteBuddy" in data["reply_text"]
+    assert len(data["suggested_followups"]) > 0
+
+    # 2. Nutrition inquiry: highest protein
+    res2 = client.post("/chat", json={"message": "What has the highest protein?"})
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["intent"] == "nutrition_inquiry"
+    assert "protein" in data2["reply_text"].lower()
+    assert len(data2["matched_items"]) > 0
+    assert len(data2["suggested_followups"]) > 0
+
+    # 3. Menu inquiry: cheapest item
+    res3 = client.post("/chat", json={"message": "What is the cheapest item?"})
+    assert res3.status_code == 200
+    data3 = res3.json()
+    assert data3["intent"] == "menu_inquiry"
+    assert len(data3["matched_items"]) > 0
+
+    # 4. Menu inquiry: dishes with paneer
+    res4 = client.post("/chat", json={"message": "What dishes have paneer?"})
+    assert res4.status_code == 200
+    data4 = res4.json()
+    assert data4["intent"] == "menu_inquiry"
+    assert any("paneer" in item["name"].lower() for item in data4["matched_items"])
+
+
+

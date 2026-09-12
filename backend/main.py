@@ -32,7 +32,11 @@ from engine import (
 )
 from llm_service import (
     extract_user_preferences,
-    generate_explanation_text
+    generate_explanation_text,
+    classify_chat_intent,
+    generate_suggested_followups,
+    handle_menu_inquiry,
+    handle_nutrition_inquiry
 )
 from session_store import session_store
 from contextlib import asynccontextmanager
@@ -195,63 +199,116 @@ async def chat_endpoint(
             reply_text=f"Validation error: {str(ve)}. Please provide a valid value.",
             is_clarification=True,
             clarification_type="validation_error",
+            suggested_followups=["Under ₹50", "Under ₹100", "Under ₹150"],
             session_id=session.session_id
         )
 
-    # 2. Check for explicit contradictions in extracted preferences
+    # 2. Check general greetings & assistance inquiries
+    intent = classify_chat_intent(raw_message)
+    if intent == "greeting":
+        followups = generate_suggested_followups(intent="greeting")
+        return ChatResponse(
+            reply_text=(
+                "Hey there! 👋 I'm **BiteBuddy**, your college canteen food assistant.\n\n"
+                "Tell me what you're craving, your budget, break time, or diet goals — and I'll find the best meal for you!\n\n"
+                "You can also ask about **nutrition facts**, **high-protein options**, or **specific dish ingredients**."
+            ),
+            is_clarification=False,
+            intent="greeting",
+            suggested_followups=followups,
+            session_id=session.session_id
+        )
+
+    # 3. Handle Menu & Dish Specific Inquiries
+    if intent == "menu_inquiry":
+        all_foods = db.query(Food).all()
+        reply, matched, followups = handle_menu_inquiry(raw_message, all_foods)
+        matched_out = [FoodOut.model_validate(f) for f in matched]
+        return ChatResponse(
+            reply_text=reply,
+            is_clarification=False,
+            intent="menu_inquiry",
+            matched_items=matched_out,
+            suggested_followups=followups,
+            session_id=session.session_id
+        )
+
+    # 4. Handle Nutrition & Macro Inquiries
+    if intent == "nutrition_inquiry":
+        all_foods = db.query(Food).all()
+        reply, matched, followups = handle_nutrition_inquiry(raw_message, all_foods)
+        matched_out = [FoodOut.model_validate(f) for f in matched]
+        return ChatResponse(
+            reply_text=reply,
+            is_clarification=False,
+            intent="nutrition_inquiry",
+            matched_items=matched_out,
+            suggested_followups=followups,
+            session_id=session.session_id
+        )
+
+    # 5. Check for explicit contradictions in extracted preferences
     conflict_msg = check_conflicts(extracted)
     if conflict_msg:
+        followups = generate_suggested_followups(clarification_type="conflict")
         return ChatResponse(
             reply_text=conflict_msg,
             is_clarification=True,
             clarification_type="conflict",
+            suggested_followups=followups,
             session_id=session.session_id,
             extracted_preferences=extracted.model_dump()
         )
 
-    # 3. Check for initial turn missing budget (if not known from profile)
+    # 6. Check for initial turn missing budget (if not known from profile)
     is_initial_turn = len(session.history) == 0
     if is_initial_turn and session.preferences.budget is None and extracted.budget is None:
         session.update_preferences(extracted)
+        followups = generate_suggested_followups(clarification_type="missing_budget")
         return ChatResponse(
             reply_text="I'd love to help you find the best canteen meal! What is your approximate budget for today? (e.g. under ₹50, ₹100, or ₹150)",
             is_clarification=True,
             clarification_type="missing_budget",
+            suggested_followups=followups,
             session_id=session.session_id,
             extracted_preferences=session.preferences.model_dump()
         )
 
-    # 4. Merge into session preferences for conversational refinement
+    # 7. Merge into session preferences for conversational refinement
     merged_prefs = session.update_preferences(extracted)
     session.history.append({"user": raw_message, "extracted": extracted.model_dump()})
 
-    # 5. Deterministic filtering & scoring
+    # 8. Deterministic filtering & scoring
     all_foods = db.query(Food).all()
     result = generate_recommendations(all_foods, merged_prefs)
     session.last_result = result
 
     # Check if contradiction was found after merge
     if result.conflict_detected:
+        followups = generate_suggested_followups(clarification_type="conflict")
         return ChatResponse(
             reply_text=result.conflict_detected,
             is_clarification=True,
             clarification_type="conflict",
+            suggested_followups=followups,
             session_id=session.session_id,
             extracted_preferences=merged_prefs.model_dump()
         )
 
-    # 6. Check if nothing available or tight constraints
+    # 9. Check if nothing available or tight constraints
     if not result.top_pick:
+        followups = generate_suggested_followups(clarification_type="no_match")
         return ChatResponse(
             reply_text=result.explanation,
             is_clarification=True,
             clarification_type="no_match",
             session_id=session.session_id,
             explanation=result.explanation,
+            suggested_followups=followups,
             extracted_preferences=merged_prefs.model_dump()
         )
 
-    # 7. Generate explanation
+    # 10. Generate explanation
     turn_type = "refinement" if len(session.history) > 1 else "initial"
     explanation_text = generate_explanation_text(
         result.top_pick,
@@ -261,6 +318,13 @@ async def chat_endpoint(
         unavailable_notice=result.relaxation_notes
     )
 
+    followups = generate_suggested_followups(
+        top_pick=result.top_pick,
+        combo=result.combo,
+        query=merged_prefs,
+        intent="recommendation"
+    )
+
     return ChatResponse(
         reply_text=explanation_text,
         is_clarification=False,
@@ -268,6 +332,8 @@ async def chat_endpoint(
         combo=result.combo,
         alternatives=result.alternatives,
         explanation=result.explanation,
+        suggested_followups=followups,
+        intent="recommendation",
         session_id=session.session_id,
         extracted_preferences=merged_prefs.model_dump()
     )

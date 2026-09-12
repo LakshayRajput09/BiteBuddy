@@ -114,6 +114,9 @@ class ChatResponse(BaseModel):
     explanation: Optional[str] = None
     session_id: str
     extracted_preferences: Optional[Dict[str, Any]] = None
+    suggested_followups: List[str] = Field(default_factory=list)
+    matched_items: List[FoodOut] = Field(default_factory=list)
+    intent: Optional[str] = None
 
 
 class AvailabilityUpdate(BaseModel):

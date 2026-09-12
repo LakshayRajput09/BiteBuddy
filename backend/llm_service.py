@@ -283,3 +283,247 @@ def generate_explanation_text(
         )
 
     return " ".join(parts)
+
+
+def classify_chat_intent(message: str) -> str:
+    """
+    Classifies student message into:
+    - 'greeting'
+    - 'nutrition_inquiry'
+    - 'menu_inquiry'
+    - 'recommendation'
+    """
+    lower = message.strip().lower()
+
+    # If it specifies budget or time limit or explicit meal craving, prefer recommendation
+    has_budget = bool(re.search(r"(?:₹|rs\.?|inr|\brupees\b|\bbucks\b|\bunder\s*\d+|\bmax\s*\d+)", lower))
+    has_time = bool(re.search(r"\b\d+\s*(?:mins?|minutes?|m)\b", lower))
+    has_meal_request = bool(re.search(r"\b(hungry|want|give\s+me|suggest|recommend|craving|lunch|dinner|breakfast|snack|meal)\b", lower))
+
+    # 1. Greeting / Bot identity / Help (only if no budget or explicit meal order)
+    if not has_budget and not has_time and not has_meal_request:
+        if re.match(r"^(hi|hello|hey|greetings|hola|sup|good morning|good afternoon|good evening|yo)[\s!.,?]*$", lower) or lower in [
+            "help", "who are you", "what can you do", "what is bitebuddy", "options", "commands"
+        ]:
+            return "greeting"
+
+    # 2. Nutrition inquiries
+    if re.search(r"\b(highest|most|max)\s+protein\b", lower) or \
+       re.search(r"\b(lowest|least|min)\s+(calories?|cals?|fat)\b", lower) or \
+       re.search(r"\bhow\s+much\s+(protein|calories?|carbs?|fat)\b", lower) or \
+       re.search(r"\b(macros?|nutrition\s+facts?)\b", lower):
+        return "nutrition_inquiry"
+
+    # 3. Specific menu inquiries (asking about specific ingredients, availability, cheapest item)
+    if re.search(r"\b(cheapest|lowest\s+price)\b", lower) or \
+       re.search(r"\bwhat\s+(dishes|items|food)\s+(have|has|contain)\b", lower) or \
+       re.search(r"\bdo\s+you\s+have\b", lower) or \
+       re.search(r"\bis\s+.*\s+(available|in\s+stock)\b", lower) or \
+       re.search(r"\bwhat\s+are\s+the\s+ingredients\b", lower) or \
+       re.search(r"\bshow\s+(all\s+)?(drinks|beverages|desserts|sweets)\b", lower):
+        return "menu_inquiry"
+
+    return "recommendation"
+
+
+def generate_suggested_followups(
+    top_pick: Optional[RecommendationCard] = None,
+    combo: Optional[MealCombination] = None,
+    query: Optional[PreferenceQuery] = None,
+    clarification_type: Optional[str] = None,
+    intent: Optional[str] = None,
+    matched_items: Optional[List[Any]] = None
+) -> List[str]:
+    """
+    Generates 3-4 smart, contextual follow-up query chips.
+    """
+    if clarification_type == "missing_budget":
+        return ["Under ₹50 quick bite", "Under ₹100 lunch", "Under ₹150 full meal", "No budget limit"]
+
+    if clarification_type == "conflict":
+        return ["Show Vegetarian options", "Show Vegan options", "Show dishes under ₹100"]
+
+    if clarification_type == "no_match":
+        return ["Increase budget to ₹150", "Allow up to 15 mins prep", "Show all vegetarian items"]
+
+    if intent == "greeting":
+        return [
+            "Under ₹120 spicy lunch",
+            "High protein vegetarian meal",
+            "Ready in under 10 minutes",
+            "Show budget snacks under ₹50"
+        ]
+
+    if intent == "nutrition_inquiry":
+        return [
+            "Add top pick to order",
+            "Show other high protein options",
+            "Under ₹100 meal",
+            "Pair with a drink"
+        ]
+
+    if intent == "menu_inquiry":
+        return [
+            "Add to my order",
+            "Show spicy alternatives",
+            "Dishes under ₹80",
+            "What's ready in 5 minutes?"
+        ]
+
+    # Recommendation follow-ups
+    chips: List[str] = []
+    if top_pick:
+        price = top_pick.item.price
+        if price > 50:
+            chips.append(f"Under ₹{int(price)} cheaper option")
+        if combo:
+            chips.append(f"Add {combo.side_item.name} combo")
+        else:
+            chips.append("Pair with a beverage")
+
+        if top_pick.item.vegetarian:
+            chips.append("Make it 100% vegan")
+        else:
+            chips.append("Show vegetarian only")
+
+        if query and "spicy" in (query.taste or []):
+            chips.append("Something less spicy")
+        else:
+            chips.append("Make it spicy")
+
+        chips.append(f"How much protein in {top_pick.item.name}?")
+
+    return chips[:4]
+
+
+def handle_menu_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any], List[str]]:
+    """
+    Answers direct questions about menu items, ingredients, availability, cheapest item.
+    """
+    lower = message.lower()
+    matched: List[Any] = []
+
+    # 1. Cheapest item inquiry
+    if re.search(r"\b(cheapest|lowest\s+price)\b", lower):
+        available_foods = [f for f in foods if f.available]
+        if available_foods:
+            sorted_by_price = sorted(available_foods, key=lambda x: x.price)
+            cheapest = sorted_by_price[0]
+            matched = sorted_by_price[:3]
+            reply = (
+                f"The most budget-friendly item in the canteen right now is **{cheapest.name}** "
+                f"at just **₹{int(cheapest.price)}** ({int(cheapest.calories or 0)} kcal, ready in {cheapest.preparation_time} min). "
+                f"Here are our top value picks:"
+            )
+            return reply, matched, ["Add to order", "Dishes under ₹50", "High protein under ₹100"]
+
+    # 2. Availability check: "is cold coffee available?", "do you have samosa?"
+    for f in foods:
+        if f.name.lower() in lower or (len(f.name) > 4 and f.name.lower()[:5] in lower):
+            status = "in stock and available right now! 🎉" if f.available else "currently sold out / unavailable 😔."
+            reply = (
+                f"**{f.name}** is {status}\n\n"
+                f"• **Price**: ₹{int(f.price)}\n"
+                f"• **Prep time**: {f.preparation_time} mins\n"
+                f"• **Nutrition**: {int(f.calories or 0)} kcal | {int(f.protein or 0)}g Protein | {int(f.carbohydrates or 0)}g Carbs"
+            )
+            matched = [f]
+            return reply, matched, [f"Add {f.name} to order", "Show similar items", "Dishes under ₹100"]
+
+    # 3. Ingredient search: "what items have paneer", "dishes with cheese"
+    ingr_match = re.search(r"\b(paneer|cheese|egg|chicken|maggi|rice|potato|aloo|mushroom|chocolate)\b", lower)
+    if ingr_match:
+        target_ingr = ingr_match.group(1)
+        matched = [f for f in foods if target_ingr in f.name.lower() or (f.ingredients and target_ingr in f.ingredients.lower())]
+        if matched:
+            reply = f"Here are the canteen dishes featuring **{target_ingr.title()}**:"
+            return reply, matched[:4], [f"Best {target_ingr} under ₹100", "Show nutrition details", "Order top pick"]
+
+    # 4. Category search: "show drinks / beverages / desserts"
+    if re.search(r"\b(drink|beverage|soda|coffee|tea|chai|lassi)\b", lower):
+        matched = [f for f in foods if f.category.lower() in ["beverage", "beverages"] or "drink" in (f.tags or "").lower()]
+        reply = "Here are our refreshing drinks and beverages:"
+        return reply, matched[:4], ["Pair with a snack", "Under ₹40 drinks", "Cold beverages only"]
+
+    if re.search(r"\b(dessert|sweet|gulab jamun)\b", lower):
+        matched = [f for f in foods if f.category.lower() in ["dessert", "desserts", "sweet"] or "sweet" in (f.tags or "").lower()]
+        reply = "Here are the sweet treats and desserts currently on the menu:"
+        return reply, matched[:4], ["Add dessert to order", "Under ₹50 sweets", "Back to main menu"]
+
+    # Default fallback menu search by words
+    words = [w for w in lower.split() if len(w) > 3 and w not in ["what", "have", "show", "tell", "about", "with", "canteen", "dishes", "items"]]
+    for w in words:
+        for f in foods:
+            if (w in f.name.lower() or (f.tags and w in f.tags.lower())) and f not in matched:
+                matched.append(f)
+    if matched:
+        reply = "Here are the canteen items matching your query:"
+        return reply, matched[:4], ["Add to order", "Dishes under ₹100", "What's fastest?"]
+
+    return (
+        "I couldn't find an exact menu match for that. Would you like me to recommend a meal based on your budget or cravings?",
+        [],
+        ["Under ₹100 lunch", "Quick snacks", "High protein items", "Browse full menu"]
+    )
+
+
+def handle_nutrition_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any], List[str]]:
+    """
+    Answers direct questions about nutrition, macros, highest protein, lowest calories.
+    """
+    lower = message.lower()
+    available_foods = [f for f in foods if f.available]
+
+    # 1. Highest protein inquiry
+    if re.search(r"\b(highest|most|max|high)\s+protein\b", lower):
+        if "veg" in lower or "vegetarian" in lower:
+            candidates = [f for f in available_foods if f.vegetarian]
+        else:
+            candidates = available_foods
+
+        sorted_by_protein = sorted(candidates, key=lambda x: x.protein or 0, reverse=True)
+        top = sorted_by_protein[0] if sorted_by_protein else None
+        if top:
+            matched = sorted_by_protein[:3]
+            reply = (
+                f"The highest protein dish right now is **{top.name}** with **{int(top.protein or 0)}g of protein** "
+                f"({int(top.calories or 0)} kcal, ₹{int(top.price)}).\n\n"
+                f"Here are our top high-protein canteen items:"
+            )
+            return reply, matched, [f"Add {top.name} to order", "Under ₹100 protein", "Pair with a beverage"]
+
+    # 2. Lowest calorie inquiry
+    if re.search(r"\b(lowest|least|min|low)\s+(calories?|cals?)\b", lower):
+        sorted_by_cals = sorted([f for f in available_foods if (f.calories or 0) > 0], key=lambda x: x.calories or 999)
+        top = sorted_by_cals[0] if sorted_by_cals else None
+        if top:
+            matched = sorted_by_cals[:3]
+            reply = (
+                f"The lowest calorie option is **{top.name}** at just **{int(top.calories or 0)} kcal** "
+                f"(₹{int(top.price)}, {int(top.protein or 0)}g protein).\n\n"
+                f"Here are our lightest canteen options:"
+            )
+            return reply, matched, [f"Add {top.name} to order", "Show light snacks", "Under ₹50"]
+
+    # 3. Macro check for a specific dish
+    for f in foods:
+        if f.name.lower() in lower or (len(f.name) > 4 and f.name.lower()[:5] in lower):
+            reply = (
+                f"📊 **Nutritional breakdown for {f.name}** (approx. per serving):\n\n"
+                f"• **Calories**: {int(f.calories or 0)} kcal\n"
+                f"• **Protein**: {int(f.protein or 0)}g\n"
+                f"• **Carbohydrates**: {int(f.carbohydrates or 0)}g\n"
+                f"• **Total Fat**: {int(f.fat or 0)}g\n"
+                f"• **Dietary Fiber**: {int(f.fiber or 0)}g\n"
+                f"• **Price**: ₹{int(f.price)} | **Prep Time**: {f.preparation_time} min"
+            )
+            return reply, [f], [f"Add {f.name} to order", "Pair with a drink", "Show alternatives"]
+
+    # Fallback to general high protein
+    sorted_by_protein = sorted(available_foods, key=lambda x: x.protein or 0, reverse=True)
+    return (
+        "Here are our most nutrient-dense options ranked by protein content:",
+        sorted_by_protein[:3],
+        ["Under ₹100 high protein", "Vegetarian protein", "Add top pick to order"]
+    )
+

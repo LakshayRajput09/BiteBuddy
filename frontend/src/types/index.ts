@@ -63,6 +63,9 @@ export interface ChatResponseData {
   explanation?: string | null;
   session_id: string;
   extracted_preferences?: Record<string, any> | null;
+  suggested_followups?: string[];
+  matched_items?: FoodItem[];
+  intent?: string | null;
 }
 
 export interface ChatMessage {
@@ -76,6 +79,9 @@ export interface ChatMessage {
   isClarification?: boolean;
   clarificationType?: string | null;
   extractedPreferences?: Record<string, any> | null;
+  suggestedFollowups?: string[];
+  matchedItems?: FoodItem[];
+  intent?: string | null;
 }
 
 // ==========================================
