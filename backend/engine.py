@@ -311,27 +311,20 @@ def calculate_score(item: Food, query: PreferenceQuery) -> Tuple[float, Dict[str
 
     nutrition_score = max(0.0, min(1.0, nutrition_score))
 
-    # Weight distribution
-    if has_nutrition_goals:
-        # 30% Pref, 20% Budget, 15% Diet, 15% Time, 10% Mood, 10% Nutrition
-        total_score = (
-            pref_score * 0.30
-            + budget_score * 0.20
-            + diet_score * 0.15
-            + time_score * 0.15
-            + mood_score * 0.10
-            + nutrition_score * 0.10
-        )
-    else:
-        # Redistribute 10% proportionally across other 5 factors:
-        # 30/90 = 0.333, 20/90 = 0.222, 15/90 = 0.167, 15/90 = 0.167, 10/90 = 0.111
-        total_score = (
-            pref_score * (30.0 / 90.0)
-            + budget_score * (20.0 / 90.0)
-            + diet_score * (15.0 / 90.0)
-            + time_score * (15.0 / 90.0)
-            + mood_score * (10.0 / 90.0)
-        )
+    # Weight distribution per Section 7:
+    # 25% Preference, 20% Budget, 20% Diet, 15% Time, 10% Nutrition, 10% Mood/Craving
+    total_score = (
+        pref_score * 0.25
+        + budget_score * 0.20
+        + diet_score * 0.20
+        + time_score * 0.15
+        + nutrition_score * 0.10
+        + mood_score * 0.10
+    )
+
+    match_pct = int(round(total_score * 100))
+    if match_pct < 60:
+        reasons.insert(0, "Closest available match")
 
     breakdown = {
         "preference_match": round(pref_score, 2),
@@ -339,7 +332,7 @@ def calculate_score(item: Food, query: PreferenceQuery) -> Tuple[float, Dict[str
         "dietary_match": round(diet_score, 2),
         "time_fit": round(time_score, 2),
         "mood_craving_match": round(mood_score, 2),
-        "nutrition_match": round(nutrition_score, 2) if has_nutrition_goals else 0.0,
+        "nutrition_match": round(nutrition_score, 2),
     }
 
     return total_score, breakdown, reasons
@@ -508,20 +501,20 @@ def generate_recommendations(
 
     top_card, top_item = scored_items[0]
 
-    # Select 2-3 alternatives with category variety
+    # Select strictly 2 alternatives for a total of TOP 3 recommendations (Section 8)
     alternatives: List[RecommendationCard] = []
     seen_categories = {top_item.category}
 
     for card, item in scored_items[1:]:
-        if len(alternatives) >= 3:
+        if len(alternatives) >= 2:
             break
         if item.category not in seen_categories:
             alternatives.append(card)
             seen_categories.add(item.category)
 
-    if len(alternatives) < 3:
+    if len(alternatives) < 2:
         for card, item in scored_items[1:]:
-            if len(alternatives) >= 3:
+            if len(alternatives) >= 2:
                 break
             if card not in alternatives:
                 alternatives.append(card)

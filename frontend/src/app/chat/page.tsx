@@ -23,7 +23,8 @@ import {
   UtensilsCrossed,
   Leaf,
   Zap,
-  Coffee
+  Coffee,
+  Scale
 } from "lucide-react";
 import { getFoodImage } from "@/data/foodData";
 import { useAuth } from "@/context/AuthContext";
@@ -35,6 +36,7 @@ interface Message {
   id: string;
   sender: "ai" | "user";
   text: string;
+  response_type?: string;
   recommendation?: any;
   combo?: any;
   alternatives?: any[];
@@ -43,6 +45,8 @@ interface Message {
   isClarification?: boolean;
   clarificationType?: string;
   intent?: string;
+  comparison?: any;
+  orderAction?: any;
   timestamp: string;
 }
 
@@ -191,10 +195,17 @@ export default function ChatPage() {
         setSessionId(data.session_id);
       }
 
+      // Auto-trigger order tray addition if order_action returned
+      if (data.order_action && data.order_action.item) {
+        addToOrder(data.order_action.item, data.order_action.quantity || 1);
+        showToast(`Added ${data.order_action.item.name} to order tray! 🛒`);
+      }
+
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         sender: "ai",
         text: data.reply_text,
+        response_type: data.response_type,
         recommendation: data.recommendation,
         combo: data.combo,
         alternatives: data.alternatives,
@@ -203,6 +214,8 @@ export default function ChatPage() {
         isClarification: data.is_clarification,
         clarificationType: data.clarification_type,
         intent: data.intent,
+        comparison: data.comparison,
+        orderAction: data.order_action,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       };
 
@@ -389,6 +402,105 @@ export default function ChatPage() {
                     <div className="prose prose-sm max-w-none text-slate-800 font-normal">
                       {msg.text}
                     </div>
+
+                    {/* Order Confirmation Notification */}
+                    {msg.orderAction && (
+                      <div className="mt-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between text-xs text-emerald-950 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <ShoppingBag className="w-4 h-4 text-emerald-700 shrink-0" />
+                          <span>
+                            Added <strong>{msg.orderAction.quantity}x {msg.orderAction.item.name}</strong> (₹{Math.round(msg.orderAction.item.price)}) to your tray!
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={toggleDrawer}
+                          className="px-2.5 py-1 bg-[#0C3B25] text-white text-[11px] font-bold rounded-lg hover:bg-[#082819] transition-all shadow-2xs shrink-0"
+                        >
+                          View Tray
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Side-by-Side Food Comparison Table (Section 11) */}
+                    {msg.comparison && (
+                      <div className="mt-3.5 pt-3 border-t border-slate-100 bg-[#FAFAF8] rounded-2xl p-3.5 sm:p-4 border border-indigo-200 text-left space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-700 text-white tracking-wide uppercase">
+                            <Scale className="w-3 h-3 text-indigo-200" />
+                            Side-by-Side Comparison
+                          </span>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                          <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                              <tr>
+                                <th className="p-2.5">Attribute</th>
+                                <th className="p-2.5 text-[#0C3B25]">{msg.comparison.dish_a.name}</th>
+                                <th className="p-2.5 text-[#0C3B25]">{msg.comparison.dish_b.name}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Price</td>
+                                <td className="p-2.5 font-bold text-slate-900">₹{Math.round(msg.comparison.dish_a.price)}</td>
+                                <td className="p-2.5 font-bold text-slate-900">₹{Math.round(msg.comparison.dish_b.price)}</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Prep Time</td>
+                                <td className="p-2.5 text-slate-800">{msg.comparison.dish_a.preparation_time} mins</td>
+                                <td className="p-2.5 text-slate-800">{msg.comparison.dish_b.preparation_time} mins</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Calories</td>
+                                <td className="p-2.5 text-slate-800">{Math.round(msg.comparison.dish_a.calories || 0)} kcal</td>
+                                <td className="p-2.5 text-slate-800">{Math.round(msg.comparison.dish_b.calories || 0)} kcal</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Protein</td>
+                                <td className="p-2.5 font-bold text-emerald-700">{Math.round(msg.comparison.dish_a.protein || 0)}g</td>
+                                <td className="p-2.5 font-bold text-emerald-700">{Math.round(msg.comparison.dish_b.protein || 0)}g</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Carbs</td>
+                                <td className="p-2.5 text-slate-800">{Math.round(msg.comparison.dish_a.carbohydrates || 0)}g</td>
+                                <td className="p-2.5 text-slate-800">{Math.round(msg.comparison.dish_b.carbohydrates || 0)}g</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Fat</td>
+                                <td className="p-2.5 text-slate-800">{Math.round(msg.comparison.dish_a.fat || 0)}g</td>
+                                <td className="p-2.5 text-slate-800">{Math.round(msg.comparison.dish_b.fat || 0)}g</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-sans font-medium text-slate-500">Diet</td>
+                                <td className="p-2.5 font-sans">{msg.comparison.dish_a.vegetarian ? "🌱 Pure Veg" : "🍗 Non-Veg"}</td>
+                                <td className="p-2.5 font-sans">{msg.comparison.dish_b.vegetarian ? "🌱 Pure Veg" : "🍗 Non-Veg"}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleAddItem(msg.comparison.dish_a)}
+                            className="w-full py-2 bg-[#0C3B25] hover:bg-[#082819] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs truncate px-2"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="truncate">Order {msg.comparison.dish_a.name}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAddItem(msg.comparison.dish_b)}
+                            className="w-full py-2 bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs truncate px-2"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                            <span className="truncate">Order {msg.comparison.dish_b.name}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* 1. BEST MATCH SPOTLIGHT CARD */}
                     {msg.recommendation && (

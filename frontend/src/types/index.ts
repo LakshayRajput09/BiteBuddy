@@ -53,8 +53,23 @@ export interface MealCombinationData {
   total_fat?: number;
 }
 
+export interface FoodComparisonResult {
+  dish_a: FoodItem;
+  dish_b: FoodItem;
+  verdict: string;
+  highlights: string[];
+}
+
+export interface OrderAction {
+  action_type: string;
+  item: FoodItem;
+  quantity: number;
+  total_price: number;
+}
+
 export interface ChatResponseData {
   reply_text: string;
+  response_type?: string;
   is_clarification: boolean;
   clarification_type?: string | null;
   recommendation?: RecommendationCardData | null;
@@ -66,13 +81,18 @@ export interface ChatResponseData {
   suggested_followups?: string[];
   matched_items?: FoodItem[];
   intent?: string | null;
+  comparison?: FoodComparisonResult | null;
+  order_action?: OrderAction | null;
+  turn_count?: number;
+  conversation_stage?: string;
 }
 
 export interface ChatMessage {
   id: string;
-  sender: "user" | "assistant";
+  sender: "user" | "assistant" | "ai";
   text: string;
   timestamp: string;
+  response_type?: string;
   recommendation?: RecommendationCardData | null;
   combo?: MealCombinationData | null;
   alternatives?: RecommendationCardData[];
@@ -82,6 +102,10 @@ export interface ChatMessage {
   suggestedFollowups?: string[];
   matchedItems?: FoodItem[];
   intent?: string | null;
+  comparison?: FoodComparisonResult | null;
+  orderAction?: OrderAction | null;
+  turnCount?: number;
+  conversationStage?: string;
 }
 
 // ==========================================

@@ -60,14 +60,16 @@ def test_post_recommend_direct(client):
     assert len(data["alternatives"]) >= 2
 
 
-def test_chat_edge_case_no_budget(client):
-    # User message with no budget specified on initial turn
+def test_chat_immediate_recommendation_without_budget_nagging(client):
+    # User message with taste/craving but no budget (Section 13: recommend immediately without nagging)
     res = client.post("/chat", json={"message": "I want something spicy and tasty"})
     assert res.status_code == 200
     data = res.json()
-    assert data["is_clarification"] is True
-    assert data["clarification_type"] == "missing_budget"
-    assert "budget" in data["reply_text"].lower()
+    assert data["is_clarification"] is False
+    assert data["recommendation"] is not None
+    assert data["recommendation"]["item"]["spicy"] is True
+    # Strictly top 3 recommendations (1 top pick + max 2 alternatives)
+    assert len(data["alternatives"]) <= 2
 
 
 def test_chat_edge_case_contradiction_vegan_paneer(client):
@@ -315,7 +317,7 @@ def test_chat_greetings_and_inquiries(client):
     res = client.post("/chat", json={"message": "Hello!"})
     assert res.status_code == 200
     data = res.json()
-    assert data["intent"] == "greeting"
+    assert data["intent"] in ["greeting", "GREETING"]
     assert "BiteBuddy" in data["reply_text"]
     assert len(data["suggested_followups"]) > 0
 
@@ -323,7 +325,7 @@ def test_chat_greetings_and_inquiries(client):
     res2 = client.post("/chat", json={"message": "What has the highest protein?"})
     assert res2.status_code == 200
     data2 = res2.json()
-    assert data2["intent"] == "nutrition_inquiry"
+    assert data2["intent"] in ["nutrition_inquiry", "ASK_NUTRITION"]
     assert "protein" in data2["reply_text"].lower()
     assert len(data2["matched_items"]) > 0
     assert len(data2["suggested_followups"]) > 0
@@ -332,14 +334,14 @@ def test_chat_greetings_and_inquiries(client):
     res3 = client.post("/chat", json={"message": "What is the cheapest item?"})
     assert res3.status_code == 200
     data3 = res3.json()
-    assert data3["intent"] == "menu_inquiry"
+    assert data3["intent"] in ["menu_inquiry", "ASK_PRICE", "SEARCH_FOOD"]
     assert len(data3["matched_items"]) > 0
 
     # 4. Menu inquiry: dishes with paneer
     res4 = client.post("/chat", json={"message": "What dishes have paneer?"})
     assert res4.status_code == 200
     data4 = res4.json()
-    assert data4["intent"] == "menu_inquiry"
+    assert data4["intent"] in ["menu_inquiry", "ASK_FOOD_DETAILS", "SEARCH_FOOD"]
     assert any("paneer" in item["name"].lower() for item in data4["matched_items"])
 
 
@@ -385,7 +387,7 @@ def test_chat_irrelevant_query(client):
     res1 = client.post("/chat", json={"message": "Write a python script to reverse a linked list"})
     assert res1.status_code == 200
     data1 = res1.json()
-    assert data1["intent"] == "irrelevant"
+    assert data1["intent"] in ["irrelevant", "IRRELEVANT"]
     assert "not relevant" in data1["reply_text"].lower()
     assert len(data1["matched_items"]) == 0
 
@@ -393,21 +395,21 @@ def test_chat_irrelevant_query(client):
     res2 = client.post("/chat", json={"message": "Can you solve 3x + 15 = 45?"})
     assert res2.status_code == 200
     data2 = res2.json()
-    assert data2["intent"] == "irrelevant"
+    assert data2["intent"] in ["irrelevant", "IRRELEVANT"]
     assert "not relevant" in data2["reply_text"].lower()
 
     # 3. World trivia / Politics
     res3 = client.post("/chat", json={"message": "Who is the president of France?"})
     assert res3.status_code == 200
     data3 = res3.json()
-    assert data3["intent"] == "irrelevant"
+    assert data3["intent"] in ["irrelevant", "IRRELEVANT"]
     assert "not relevant" in data3["reply_text"].lower()
 
     # 4. Non-canteen everyday advice
     res4 = client.post("/chat", json={"message": "How do I fix a flat tire on my car?"})
     assert res4.status_code == 200
     data4 = res4.json()
-    assert data4["intent"] == "irrelevant"
+    assert data4["intent"] in ["irrelevant", "IRRELEVANT"]
     assert "not relevant" in data4["reply_text"].lower()
 
 
@@ -439,6 +441,104 @@ def test_chat_sold_out_on_menu_item_unavailable_and_recommends(client):
     assert res_avail.status_code == 200
     data_avail = res_avail.json()
     assert "available right now" in data_avail["reply_text"].lower() or "in stock" in data_avail["reply_text"].lower()
+
+
+def test_chat_comparison_matrix(client):
+    # Student compares Maggi and Paneer Roll
+    res = client.post("/chat", json={"message": "Maggi vs Paneer Roll"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "COMPARE_FOOD"
+    assert data["response_type"] == "COMPARISON"
+    assert data["comparison"] is not None
+    assert "Paneer Kathi Roll" in [data["comparison"]["dish_a"]["name"], data["comparison"]["dish_b"]["name"]]
+    assert "Classic Masala Maggi" in [data["comparison"]["dish_a"]["name"], data["comparison"]["dish_b"]["name"]]
+    assert len(data["comparison"]["highlights"]) > 0
+    assert "protein" in data["comparison"]["verdict"].lower()
+
+
+def test_chat_order_action_integration(client):
+    # 1. First get a recommendation
+    res1 = client.post("/chat", json={"message": "Suggest a spicy snack under ₹100"})
+    assert res1.status_code == 200
+    data1 = res1.json()
+    session_id = data1["session_id"]
+    top_item_name = data1["recommendation"]["item"]["name"]
+
+    # 2. Student says "Add the first one to my order"
+    res2 = client.post("/chat", json={"message": "Add the first one to my order", "session_id": session_id})
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["intent"] == "ORDER_FOOD"
+    assert data2["response_type"] == "ORDER_CONFIRMATION"
+    assert data2["order_action"] is not None
+    assert data2["order_action"]["action_type"] == "add_to_order"
+    assert data2["order_action"]["item"]["name"] == top_item_name
+    assert "added" in data2["reply_text"].lower()
+
+
+def test_chat_reference_resolution_macros(client):
+    # 1. Initial recommendation
+    res1 = client.post("/chat", json={"message": "Show high protein options under ₹150"})
+    assert res1.status_code == 200
+    data1 = res1.json()
+    session_id = data1["session_id"]
+    top_item = data1["recommendation"]["item"]
+
+    # 2. Student asks "How much protein does the first one have?"
+    res2 = client.post(
+        "/chat",
+        json={"message": "How much protein does the first one have?", "session_id": session_id}
+    )
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["intent"] == "ASK_NUTRITION"
+    assert data2["response_type"] == "NUTRITION_RESULT"
+    assert top_item["name"].lower() in data2["reply_text"].lower()
+    assert f"{int(top_item['protein'])}g" in data2["reply_text"]
+
+
+def test_chat_mind_changing_and_refinements(client):
+    # 1. Turn 1: High protein meal under ₹150
+    res1 = client.post("/chat", json={"message": "High protein meal under ₹150"})
+    assert res1.status_code == 200
+    data1 = res1.json()
+    session_id = data1["session_id"]
+
+    # 2. Turn 2: "Not noodles"
+    res2 = client.post("/chat", json={"message": "Not noodles", "session_id": session_id})
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["recommendation"] is not None
+    assert "noodle" not in data2["recommendation"]["item"]["name"].lower()
+
+    # 3. Turn 3: "Make it cheaper"
+    res3 = client.post("/chat", json={"message": "Make it cheaper", "session_id": session_id})
+    assert res3.status_code == 200
+    data3 = res3.json()
+    assert data3["recommendation"] is not None
+    # Price should be lower than previous budget
+    assert data3["recommendation"]["item"]["price"] <= 115.0
+
+    # 4. Turn 4: "Forget my previous preference"
+    res4 = client.post("/chat", json={"message": "Forget my previous preference", "session_id": session_id})
+    assert res4.status_code == 200
+    data4 = res4.json()
+    assert "reset" in data4["reply_text"].lower()
+
+
+def test_chat_greeting_and_help(client):
+    # Greeting
+    res_greet = client.post("/chat", json={"message": "Hello!"})
+    assert res_greet.status_code == 200
+    assert res_greet.json()["intent"] == "GREETING"
+    assert "BiteBuddy" in res_greet.json()["reply_text"]
+
+    # Help
+    res_help = client.post("/chat", json={"message": "Help"})
+    assert res_help.status_code == 200
+    assert res_help.json()["intent"] == "HELP"
+    assert "Recommend Meals" in res_help.json()["reply_text"]
 
 
 

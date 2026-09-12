@@ -3,7 +3,10 @@ import re
 import json
 from typing import Optional, Dict, Any, Tuple, List
 import httpx
-from schemas import PreferenceQuery, RecommendationCard, MealCombination
+from schemas import (
+    PreferenceQuery, RecommendationCard, MealCombination,
+    FoodComparisonResult, FoodOut, ChatIntent, ChatResponseType, OrderAction
+)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
@@ -287,43 +290,253 @@ def generate_explanation_text(
 
 def classify_chat_intent(message: str) -> str:
     """
-    Classifies student message into:
-    - 'greeting'
-    - 'nutrition_inquiry'
-    - 'menu_inquiry'
-    - 'recommendation'
+    Classifies student message into explicit 15-intent taxonomy:
+    - ChatIntent.ORDER_FOOD
+    - ChatIntent.COMPARE_FOOD
+    - ChatIntent.BUILD_COMBO
+    - ChatIntent.MODIFY_PREFERENCE
+    - ChatIntent.ASK_PRICE
+    - ChatIntent.ASK_AVAILABILITY
+    - ChatIntent.ASK_FOOD_DETAILS
+    - ChatIntent.ASK_NUTRITION
+    - ChatIntent.VIEW_NUTRITION
+    - ChatIntent.SEARCH_FOOD
+    - ChatIntent.GREETING
+    - ChatIntent.HELP
+    - ChatIntent.UNCLEAR
+    - ChatIntent.RECOMMEND_FOOD
     """
     lower = message.strip().lower()
 
-    # If it specifies budget or time limit or explicit meal craving, prefer recommendation
-    has_budget = bool(re.search(r"(?:₹|rs\.?|inr|\brupees\b|\bbucks\b|\bunder\s*\d+|\bmax\s*\d+)", lower))
-    has_time = bool(re.search(r"\b\d+\s*(?:mins?|minutes?|m)\b", lower))
-    has_meal_request = bool(re.search(r"\b(hungry|want|give\s+me|suggest|recommend|craving|lunch|dinner|breakfast|snack|meal)\b", lower))
+    # 1. ORDER_FOOD
+    if re.search(r"\b(?:add (?:it|that|the [a-z0-9\s]+|this|combo|pick)?\s*to (?:my )?order|order (?:it|that|the [a-z0-9\s]+|this)?|i want to order|buy (?:it|that|the [a-z0-9\s]+))\b", lower):
+        return ChatIntent.ORDER_FOOD
 
-    # 1. Greeting / Bot identity / Help (only if no budget or explicit meal order)
-    if not has_budget and not has_time and not has_meal_request:
-        if re.match(r"^(hi|hello|hey|greetings|hola|sup|good morning|good afternoon|good evening|yo)[\s!.,?]*$", lower) or lower in [
-            "help", "who are you", "what can you do", "what is bitebuddy", "options", "commands"
-        ]:
-            return "greeting"
+    # 2. COMPARE_FOOD (dish vs dish)
+    if re.search(r"\b(?:vs\.?|versus)\b", lower) or \
+       re.search(r"\bcompare\s+[a-z0-9\s]+?\s+(?:and|with|to)\b", lower) or \
+       re.search(r"\bwhich\s+(?:one\s+)?(?:is\s+better|is\s+healthier|has\s+more\s+protein|is\s+cheaper|is\s+faster)\b", lower):
+        return ChatIntent.COMPARE_FOOD
 
-    # 2. Nutrition inquiries
+    # 3. BUILD_COMBO
+    if re.search(r"\b(?:build|make|suggest|give me)?\s*(?:a\s+)?combo\b", lower) or \
+       re.search(r"\bpair\s+(?:it\s+)?with\s+(?:a\s+)?(?:drink|beverage|side|snack)\b", lower):
+        return ChatIntent.BUILD_COMBO
+
+    # 4. VIEW_NUTRITION
+    if re.search(r"\b(?:show|view)\s+(?:nutrition|macros|macro goals)\b", lower) or \
+       lower in ["show nutrition", "view nutrition", "nutrition facts", "macros"]:
+        return ChatIntent.VIEW_NUTRITION
+
+    # 5. MODIFY_PREFERENCE (mind changing, natural adjustments, exclusions)
+    if re.search(r"\b(?:make\s+it\s+cheaper|cheaper|something\s+cheaper|cheapest\s+option)\b", lower) or \
+       re.search(r"\b(?:something\s+faster|faster|quicker|less\s+prep\s+time|less\s+time)\b", lower) or \
+       re.search(r"\b(?:more\s+protein|higher\s+protein|give\s+me\s+more\s+protein)\b", lower) or \
+       re.search(r"\b(?:not\s+[a-z]+|no\s+[a-z]+|without\s+[a-z]+|don'?t\s+want\s+[a-z]+|skip\s+[a-z]+|exclude\s+[a-z]+)\b", lower) or \
+       re.search(r"\b(?:not\s+spicy|less\s+spicy|no\s+spicy|mild|i\s+don'?t\s+want\s+spicy)\b", lower) or \
+       re.search(r"\b(?:actually\s+i\s+have|my\s+budget\s+is|have\s+₹?\d+\s*only)\b", lower) or \
+       re.search(r"\b(?:forget\s+(?:my\s+)?previous|start\s+over|reset\s+(?:session)?|restart)\b", lower) or \
+       re.search(r"\b(?:something\s+different|something\s+else|different\s+option|show\s+more)\b", lower):
+        return ChatIntent.MODIFY_PREFERENCE
+
+    # 6. ASK_PRICE
+    if re.search(r"\b(?:cheapest|lowest\s+price)\b", lower) or \
+       re.search(r"\bhow\s+much\s+(?:is|does|cost)\b", lower) or \
+       re.search(r"\bwhat\s+is\s+the\s+price\b", lower) or \
+       re.search(r"\bprice\s+of\b", lower) or \
+       re.search(r"\bcost\s+of\b", lower):
+        return ChatIntent.ASK_PRICE
+
+    # 7. ASK_AVAILABILITY
+    if re.search(r"\bis\s+.*\s+(available|in\s+stock)\b", lower) or \
+       re.search(r"\bdo\s+you\s+have\s+.*\s+(available|today|now)\b", lower) or \
+       re.search(r"\bdo\s+you\s+have\b", lower):
+        return ChatIntent.ASK_AVAILABILITY
+
+    # 8. ASK_FOOD_DETAILS
+    if re.search(r"\bwhat\s+(?:is|are)\s+(?:inside|in)\b", lower) or \
+       re.search(r"\bwhat\s+are\s+the\s+ingredients\b", lower) or \
+       re.search(r"\bhow\s+big\s+is\b", lower) or \
+       re.search(r"\bserving\s+size\b", lower) or \
+       re.search(r"\btell\s+me\s+about\b", lower):
+        return ChatIntent.ASK_FOOD_DETAILS
+
+    # 9. ASK_NUTRITION
     if re.search(r"\b(highest|most|max)\s+protein\b", lower) or \
        re.search(r"\b(lowest|least|min)\s+(calories?|cals?|fat)\b", lower) or \
-       re.search(r"\bhow\s+much\s+(protein|calories?|carbs?|fat)\b", lower) or \
-       re.search(r"\b(macros?|nutrition\s+facts?)\b", lower):
-        return "nutrition_inquiry"
+       re.search(r"\bhow\s+much\s+(protein|calories?|cals?|carbs?|fat|sugar|fiber)\b", lower) or \
+       re.search(r"\bhow\s+many\s+calories?\b", lower) or \
+       re.search(r"\bis\s+.*\s+(?:low\s+calorie|healthy|high\s+protein)\b", lower):
+        return ChatIntent.ASK_NUTRITION
 
-    # 3. Specific menu inquiries (asking about specific ingredients, availability, cheapest item)
-    if re.search(r"\b(cheapest|lowest\s+price)\b", lower) or \
-       re.search(r"\bwhat\s+(dishes|items|food)\s+(have|has|contain)\b", lower) or \
-       re.search(r"\bdo\s+you\s+have\b", lower) or \
-       re.search(r"\bis\s+.*\s+(available|in\s+stock)\b", lower) or \
-       re.search(r"\bwhat\s+are\s+the\s+ingredients\b", lower) or \
-       re.search(r"\bshow\s+(all\s+)?(drinks|beverages|desserts|sweets)\b", lower):
-        return "menu_inquiry"
+    # 10. SEARCH_FOOD
+    if re.search(r"\b(?:search|find|show\s+all|list\s+all)\b", lower) or \
+       re.search(r"\b(?:what\s+(?:dishes|items|food)\s+(?:have|has|contain)|dishes\s+with|items\s+with|food\s+with)\b", lower) or \
+       re.search(r"\bshow\s+(?:all\s+)?(?:drinks|beverages|rolls|sandwiches|desserts|items|dishes|sweets)\b", lower):
+        return ChatIntent.SEARCH_FOOD
 
-    return "recommendation"
+    # 11. GREETING
+    if re.match(r"^(hi|hello|hey|greetings|hola|sup|good morning|good afternoon|good evening|yo)[\s!.,?]*$", lower):
+        return ChatIntent.GREETING
+
+    # 12. HELP
+    if lower in ["help", "who are you", "what can you do", "what is bitebuddy", "options", "commands", "how does this work"]:
+        return ChatIntent.HELP
+
+    # 13. UNCLEAR
+    if lower in ["i don't know", "idk", "whatever", "maybe", "not sure", "anything", "dunno"]:
+        return ChatIntent.UNCLEAR
+
+    # Default to RECOMMEND_FOOD
+    return ChatIntent.RECOMMEND_FOOD
+
+
+def extract_comparison_targets(message: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extracts two candidate dish names from comparison queries.
+    e.g. 'Maggi vs Paneer Roll' -> ('maggi', 'paneer roll')
+    """
+    lower = message.strip().lower()
+    # 1. "A vs B" or "A versus B"
+    m = re.search(r"([a-z0-9\s]+?)\s+(?:vs\.?|versus)\s+([a-z0-9\s\?]+)", lower)
+    if m:
+        return m.group(1).strip(), m.group(2).strip("? ").strip()
+    # 2. "compare A and/with B"
+    m = re.search(r"compare\s+([a-z0-9\s]+?)\s+(?:and|with|to)\s+([a-z0-9\s\?]+)", lower)
+    if m:
+        return m.group(1).strip(), m.group(2).strip("? ").strip()
+    # 3. "which ... : A or B"
+    m = re.search(r"which(?:\s+one)?\s+[a-z\s]+?:\s*([a-z0-9\s]+?)\s+or\s+([a-z0-9\s\?]+)", lower)
+    if m:
+        return m.group(1).strip(), m.group(2).strip("? ").strip()
+    # 4. "which is better A or B"
+    m = re.search(r"which(?:\s+is)?\s+(?:better|healthier|faster|cheaper)\s+([a-z0-9\s]+?)\s+or\s+([a-z0-9\s\?]+)", lower)
+    if m:
+        return m.group(1).strip(), m.group(2).strip("? ").strip()
+    return None, None
+
+
+def find_food_by_name(text: str, foods: List[Any]) -> Optional[Any]:
+    """Finds a food item in database by name, nickname, or substring."""
+    if not text:
+        return None
+    lower = text.strip().lower()
+
+    # Direct match
+    for f in foods:
+        if f.name.lower() == lower:
+            return f
+
+    # Nickname match
+    for f in foods:
+        if _match_dish_nickname(lower, f.name.lower()):
+            return f
+
+    # Substring match
+    for f in foods:
+        if f.name.lower() in lower or lower in f.name.lower():
+            return f
+
+    # Token match
+    tokens = [w for w in lower.split() if len(w) > 3 and w not in ["with", "have", "some", "want", "more", "less", "dish", "food"]]
+    for f in foods:
+        if any(t in f.name.lower() for t in tokens):
+            return f
+
+    return None
+
+
+def generate_food_comparison(message: str, foods: List[Any]) -> Optional[FoodComparisonResult]:
+    """
+    Builds a grounded, factual comparison between two menu dishes per Section 11.
+    """
+    target_a_str, target_b_str = extract_comparison_targets(message)
+    if not target_a_str or not target_b_str:
+        return None
+
+    item_a = find_food_by_name(target_a_str, foods)
+    item_b = find_food_by_name(target_b_str, foods)
+
+    if not item_a or not item_b:
+        return None
+
+    out_a = FoodOut.model_validate(item_a)
+    out_b = FoodOut.model_validate(item_b)
+
+    highlights = []
+    # Protein comparison
+    prot_diff = round((out_a.protein or 0) - (out_b.protein or 0), 1)
+    if prot_diff > 2:
+        highlights.append(f"💪 **{out_a.name}** has **{int(out_a.protein or 0)}g protein** (+{int(prot_diff)}g more than {out_b.name})")
+    elif prot_diff < -2:
+        highlights.append(f"💪 **{out_b.name}** has **{int(out_b.protein or 0)}g protein** (+{int(abs(prot_diff))}g more than {out_a.name})")
+    else:
+        highlights.append(f"💪 Both offer similar protein (~{int(out_a.protein or 0)}g)")
+
+    # Price comparison
+    price_diff = out_a.price - out_b.price
+    if price_diff > 10:
+        highlights.append(f"💰 **{out_b.name}** is more budget-friendly at ₹{int(out_b.price)} (₹{int(price_diff)} cheaper)")
+    elif price_diff < -10:
+        highlights.append(f"💰 **{out_a.name}** is more budget-friendly at ₹{int(out_a.price)} (₹{int(abs(price_diff))} cheaper)")
+    else:
+        highlights.append(f"💰 Similar price point (₹{int(out_a.price)} vs ₹{int(out_b.price)})")
+
+    # Time comparison
+    if out_a.preparation_time < out_b.preparation_time:
+        highlights.append(f"⏱️ **{out_a.name}** is faster ({out_a.preparation_time}m vs {out_b.preparation_time}m)")
+    elif out_b.preparation_time < out_a.preparation_time:
+        highlights.append(f"⏱️ **{out_b.name}** is faster ({out_b.preparation_time}m vs {out_a.preparation_time}m)")
+
+    # Summary verdict per Section 11
+    if (out_a.protein or 0) > (out_b.protein or 0):
+        verdict = f"If you want more protein, go with **{out_a.name}** ({int(out_a.protein or 0)}g). If you prefer a lighter or faster option, **{out_b.name}** is a great choice!"
+    elif (out_b.protein or 0) > (out_a.protein or 0):
+        verdict = f"If you want more protein, go with **{out_b.name}** ({int(out_b.protein or 0)}g). If you prefer a lighter or faster option, **{out_a.name}** is a great choice!"
+    elif out_a.price < out_b.price:
+        verdict = f"If budget is your priority, **{out_a.name}** saves you ₹{int(out_b.price - out_a.price)}. Otherwise, **{out_b.name}** is delicious!"
+    else:
+        verdict = f"Both **{out_a.name}** and **{out_b.name}** are top campus favorites. Choose {out_a.name} for {out_a.cuisine} flavors or {out_b.name} for {out_b.category}!"
+
+    return FoodComparisonResult(
+        dish_a=out_a,
+        dish_b=out_b,
+        verdict=verdict,
+        highlights=highlights
+    )
+
+
+def handle_food_reference_question(message: str, item: FoodOut) -> str:
+    """Answers follow-up questions targeting a specific previously recommended item."""
+    lower = message.lower()
+
+    if "protein" in lower:
+        return f"**{item.name}** contains approximately **{int(item.protein or 0)}g of protein** ({int(item.calories or 0)} kcal, ₹{int(item.price)})."
+    if "calorie" in lower or "cal" in lower:
+        return f"**{item.name}** has approximately **{int(item.calories or 0)} kcal** ({int(item.protein or 0)}g protein, {int(item.carbohydrates or 0)}g carbs, {int(item.fat or 0)}g fat)."
+    if "price" in lower or "cost" in lower or "how much" in lower:
+        return f"**{item.name}** is priced at **₹{int(item.price)}**."
+    if "spicy" in lower:
+        status = "spicy 🌶️" if item.spicy else "mild / not spicy"
+        return f"**{item.name}** is **{status}**."
+    if "veg" in lower:
+        diet = "100% vegetarian 🌱" if item.vegetarian else "non-vegetarian 🍗"
+        if item.vegan:
+            diet = "100% vegan / plant-based 🌿"
+        return f"**{item.name}** is **{diet}**."
+    if "prep" in lower or "time" in lower or "ready" in lower or "fast" in lower:
+        return f"**{item.name}** takes approximately **{item.preparation_time} minutes** to prepare."
+    if "ingredient" in lower or "inside" in lower or "in it" in lower:
+        ingrs = item.ingredients or "Fresh canteen ingredients"
+        return f"**{item.name}** contains: {ingrs}."
+
+    return (
+        f"**{item.name}** details:\n"
+        f"• **Price**: ₹{int(item.price)}\n"
+        f"• **Prep Time**: {item.preparation_time} mins\n"
+        f"• **Nutrition**: {int(item.calories or 0)} kcal | {int(item.protein or 0)}g Protein | {int(item.carbohydrates or 0)}g Carbs | {int(item.fat or 0)}g Fat\n"
+        f"• **Ingredients**: {item.ingredients}"
+    )
 
 
 def generate_suggested_followups(
@@ -346,7 +559,7 @@ def generate_suggested_followups(
     if clarification_type == "no_match":
         return ["Increase budget to ₹150", "Allow up to 15 mins prep", "Show all vegetarian items"]
 
-    if intent == "greeting":
+    if intent in [ChatIntent.GREETING, "greeting"]:
         return [
             "Under ₹120 spicy lunch",
             "High protein vegetarian meal",
@@ -354,7 +567,23 @@ def generate_suggested_followups(
             "Show budget snacks under ₹50"
         ]
 
-    if intent == "nutrition_inquiry":
+    if intent in [ChatIntent.COMPARE_FOOD, "compare_food"]:
+        return [
+            "Add dish 1 to order",
+            "Add dish 2 to order",
+            "Under ₹100 meal",
+            "What's fastest?"
+        ]
+
+    if intent in [ChatIntent.ORDER_FOOD, "order_food"]:
+        return [
+            "Pair with a drink",
+            "Add a dessert",
+            "View my order",
+            "What's ready in 5 mins?"
+        ]
+
+    if intent in [ChatIntent.ASK_NUTRITION, "nutrition_inquiry"]:
         return [
             "Add top pick to order",
             "Show other high protein options",
@@ -362,7 +591,7 @@ def generate_suggested_followups(
             "Pair with a drink"
         ]
 
-    if intent == "menu_inquiry":
+    if intent in [ChatIntent.ASK_PRICE, ChatIntent.ASK_AVAILABILITY, ChatIntent.ASK_FOOD_DETAILS, ChatIntent.SEARCH_FOOD, "menu_inquiry"]:
         return [
             "Add to my order",
             "Show spicy alternatives",
@@ -370,30 +599,18 @@ def generate_suggested_followups(
             "What's ready in 5 minutes?"
         ]
 
-    # Recommendation follow-ups
-    chips: List[str] = []
+    # Recommendation follow-ups & quick action chips (Section 25)
+    chips: List[str] = [
+        "Cheaper",
+        "Faster",
+        "More Protein",
+        "Something Spicy"
+    ]
     if top_pick:
-        price = top_pick.item.price
-        if price > 50:
-            chips.append(f"Under ₹{int(price)} cheaper option")
-        if combo:
-            chips.append(f"Add {combo.side_item.name} combo")
-        else:
-            chips.append("Pair with a beverage")
-
-        if top_pick.item.vegetarian:
-            chips.append("Make it 100% vegan")
-        else:
-            chips.append("Show vegetarian only")
-
-        if query and "spicy" in (query.taste or []):
-            chips.append("Something less spicy")
-        else:
-            chips.append("Make it spicy")
-
         chips.append(f"How much protein in {top_pick.item.name}?")
+        chips.append(f"Add {top_pick.item.name} to order")
 
-    return chips[:4]
+    return chips[:5]
 
 
 def handle_menu_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any], List[str]]:
@@ -895,6 +1112,20 @@ def check_relevance(message: str) -> Tuple[bool, Optional[str]]:
         "who are you", "what can you do", "help", "help me", "start", "menu"
     ]
     if any(phrase in lower for phrase in GREETING_PHRASES):
+        return False, None
+
+    # 7. Check conversational mind-changing, refinement, comparison, and ordering patterns
+    RELEVANT_CONVERSATIONAL_PATTERNS = [
+        r"\b(?:cheaper|cheapest|faster|quicker|speed|protein|calorie|calories|spicy|mild)\b",
+        r"\b(?:not|no|without|skip|avoid|don'?t\s+want)\b",
+        r"\b(?:order|tray|cart|add\s+to|add\s+it|buy|have\s+that)\b",
+        r"\b(?:reset|start\s+over|restart|forget)\b",
+        r"\b(?:different|other|another|more|less)\b",
+        r"\b(?:first|second|third|1st|2nd|3rd)\b",
+        r"\b(?:vs|versus|compare|healthier|better)\b",
+        r"\b(?:combo|pair)\b",
+    ]
+    if any(re.search(pat, lower) for pat in RELEVANT_CONVERSATIONAL_PATTERNS):
         return False, None
 
     # If none of the food/canteen keywords, off-menu foods, prices, time limits, or greetings match,

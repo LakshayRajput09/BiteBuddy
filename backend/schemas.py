@@ -98,6 +98,56 @@ class RecommendationResult(BaseModel):
     conflict_detected: Optional[str] = None
 
 
+class ChatIntent:
+    RECOMMEND_FOOD = "RECOMMEND_FOOD"
+    SEARCH_FOOD = "SEARCH_FOOD"
+    ASK_FOOD_DETAILS = "ASK_FOOD_DETAILS"
+    ASK_NUTRITION = "ASK_NUTRITION"
+    ASK_PRICE = "ASK_PRICE"
+    ASK_AVAILABILITY = "ASK_AVAILABILITY"
+    MODIFY_PREFERENCE = "MODIFY_PREFERENCE"
+    COMPARE_FOOD = "COMPARE_FOOD"
+    BUILD_COMBO = "BUILD_COMBO"
+    ORDER_FOOD = "ORDER_FOOD"
+    VIEW_NUTRITION = "VIEW_NUTRITION"
+    GREETING = "GREETING"
+    HELP = "HELP"
+    UNCLEAR = "UNCLEAR"
+    IRRELEVANT = "IRRELEVANT"
+    UNAVAILABLE_ITEM = "UNAVAILABLE_ITEM"
+    OFF_MENU = "OFF_MENU"
+
+
+class ChatResponseType:
+    TEXT_RESPONSE = "TEXT_RESPONSE"
+    FOOD_RECOMMENDATION = "FOOD_RECOMMENDATION"
+    FOOD_DETAILS = "FOOD_DETAILS"
+    COMPARISON = "COMPARISON"
+    NUTRITION_RESULT = "NUTRITION_RESULT"
+    NO_MATCH = "NO_MATCH"
+    CLARIFICATION = "CLARIFICATION"
+    ORDER_CONFIRMATION = "ORDER_CONFIRMATION"
+
+
+class FoodComparisonItem(BaseModel):
+    item: FoodOut
+    highlight: Optional[str] = None
+
+
+class FoodComparisonResult(BaseModel):
+    dish_a: FoodOut
+    dish_b: FoodOut
+    verdict: str
+    highlights: List[str] = Field(default_factory=list)
+
+
+class OrderAction(BaseModel):
+    action_type: str = "add_to_order"
+    item: FoodOut
+    quantity: int = 1
+    total_price: float = 0.0
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
@@ -106,6 +156,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply_text: str
+    response_type: str = ChatResponseType.TEXT_RESPONSE
     is_clarification: bool = False
     clarification_type: Optional[str] = None
     recommendation: Optional[RecommendationCard] = None
@@ -117,6 +168,10 @@ class ChatResponse(BaseModel):
     suggested_followups: List[str] = Field(default_factory=list)
     matched_items: List[FoodOut] = Field(default_factory=list)
     intent: Optional[str] = None
+    comparison: Optional[FoodComparisonResult] = None
+    order_action: Optional[OrderAction] = None
+    turn_count: int = 1
+    conversation_stage: str = "initial"
 
 
 class AvailabilityUpdate(BaseModel):

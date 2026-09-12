@@ -21,6 +21,7 @@ from seed_data import seed_database
 from schemas import (
     PreferenceQuery, FoodOut, RecommendationResult,
     ChatRequest, ChatResponse, AvailabilityUpdate, RecommendationCard,
+    ChatIntent, ChatResponseType, FoodComparisonResult, OrderAction,
     UserRegister, UserLogin, DemoLoginRequest, UserOut, AuthResponse,
     UpdateNameRequest,
     StudentProfileOut, StudentProfileUpdate, StudentNutritionGoalOut,
@@ -40,7 +41,10 @@ from llm_service import (
     handle_nutrition_inquiry,
     check_off_menu_item,
     check_unavailable_or_off_menu,
-    check_relevance
+    check_relevance,
+    generate_food_comparison,
+    handle_food_reference_question,
+    find_food_by_name
 )
 from session_store import session_store
 from contextlib import asynccontextmanager
@@ -169,7 +173,9 @@ async def chat_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Conversational pipeline with conversational refinement & nutrition awareness.
+    Production-grade college canteen conversational assistant:
+    Menu-grounded, zero hallucination, context-aware memory, 15-intent taxonomy,
+    comparison matrix, reference resolution, and direct order integration.
     """
     session = session_store.get_or_create(request.session_id)
     raw_message = request.message.strip()
@@ -177,7 +183,9 @@ async def chat_endpoint(
     if not raw_message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    # If student_id is provided or session matches student, preload student preferences
+    all_foods = db.query(Food).all()
+
+    # Preload student profile preferences if authenticated
     student_id = request.student_id or (session.session_id if session.session_id.startswith("student_") else None)
     if student_id:
         student_profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
@@ -208,11 +216,14 @@ async def chat_endpoint(
                 "• **Food orders** and tracking your daily macro goals\n\n"
                 "Please ask me anything about our canteen menu or what you'd like to eat!"
             ),
+            response_type=ChatResponseType.TEXT_RESPONSE,
             is_clarification=False,
-            intent="irrelevant",
+            intent=ChatIntent.IRRELEVANT,
             suggested_followups=["What's on the menu today?", "High protein options", "Quick snacks under 10m", "Dishes under ₹100"],
             matched_items=[],
-            session_id=session.session_id
+            session_id=session.session_id,
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
     # 2. Invalid input validation (e.g. negative budget)
@@ -221,135 +232,365 @@ async def chat_endpoint(
     except ValueError as ve:
         return ChatResponse(
             reply_text=f"Validation error: {str(ve)}. Please provide a valid value.",
+            response_type=ChatResponseType.CLARIFICATION,
             is_clarification=True,
             clarification_type="validation_error",
             suggested_followups=["Under ₹50", "Under ₹100", "Under ₹150"],
-            session_id=session.session_id
+            session_id=session.session_id,
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
     # 3. Check if user asked for an UNAVAILABLE on-menu dish OR an OFF-MENU food item
     # Rule: First tell user it is not available, then recommend kitchen-fresh alternatives!
-    all_foods = db.query(Food).all()
     unavail_match = check_unavailable_or_off_menu(raw_message, all_foods)
     if unavail_match:
         reply_text, alts, followups, match_intent = unavail_match
         matched_out = [FoodOut.model_validate(f) for f in alts]
+        session.set_last_recommendations(matched_out)
         return ChatResponse(
             reply_text=reply_text,
+            response_type=ChatResponseType.FOOD_RECOMMENDATION,
             is_clarification=False,
             intent=match_intent,
             matched_items=matched_out,
             suggested_followups=followups,
-            session_id=session.session_id
+            session_id=session.session_id,
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
-    # 3. Check general greetings & assistance inquiries
+    # 4. Classify user intent
     intent = classify_chat_intent(raw_message)
-    if intent == "greeting":
-        followups = generate_suggested_followups(intent="greeting")
+
+    # 5. Handle GREETING
+    if intent == ChatIntent.GREETING:
+        followups = generate_suggested_followups(intent=ChatIntent.GREETING)
         return ChatResponse(
             reply_text=(
                 "Hey there! 👋 I'm **BiteBuddy**, your college canteen food assistant.\n\n"
                 "Tell me what you're craving, your budget, break time, or diet goals — and I'll find the best meal for you!\n\n"
                 "You can also ask about **nutrition facts**, **high-protein options**, or **specific dish ingredients**."
             ),
+            response_type=ChatResponseType.TEXT_RESPONSE,
             is_clarification=False,
-            intent="greeting",
+            intent=ChatIntent.GREETING,
             suggested_followups=followups,
-            session_id=session.session_id
+            session_id=session.session_id,
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
-    # 3. Handle Menu & Dish Specific Inquiries
-    if intent == "menu_inquiry":
-        all_foods = db.query(Food).all()
-        reply, matched, followups = handle_menu_inquiry(raw_message, all_foods)
-        matched_out = [FoodOut.model_validate(f) for f in matched]
+    # 6. Handle HELP
+    if intent == ChatIntent.HELP:
         return ChatResponse(
-            reply_text=reply,
+            reply_text=(
+                "Here is how I can help you at the campus canteen:\n\n"
+                "• **Recommend Meals**: Tell me your budget, cravings, or break time (e.g. *'Under ₹120 spicy lunch in 10 mins'*)\n"
+                "• **Check Nutrition**: Ask for macros (e.g. *'How much protein in Chicken Biryani?'* or *'Show lowest calorie options'*)\n"
+                "• **Compare Dishes**: See a side-by-side breakdown (e.g. *'Maggi vs Paneer Roll'*)\n"
+                "• **Build Combos**: Ask for meal pairs (e.g. *'Combo meal under ₹150 with a drink'*)\n"
+                "• **Order Direct**: Add recommendations straight to your order tray (e.g. *'Add the first one to my order'*)\n"
+                "• **Refine Anytime**: Change your mind naturally (e.g. *'Make it cheaper'*, *'Not noodles'*, or *'Start over'*)"
+            ),
+            response_type=ChatResponseType.TEXT_RESPONSE,
             is_clarification=False,
-            intent="menu_inquiry",
-            matched_items=matched_out,
-            suggested_followups=followups,
-            session_id=session.session_id
+            intent=ChatIntent.HELP,
+            suggested_followups=["Under ₹100 meal", "High protein options", "What's fastest?", "Browse full menu"],
+            session_id=session.session_id,
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
-    # 4. Handle Nutrition & Macro Inquiries
-    if intent == "nutrition_inquiry":
-        all_foods = db.query(Food).all()
-        reply, matched, followups = handle_nutrition_inquiry(raw_message, all_foods)
-        matched_out = [FoodOut.model_validate(f) for f in matched]
+    # 7. Handle UNCLEAR
+    if intent == ChatIntent.UNCLEAR:
         return ChatResponse(
-            reply_text=reply,
+            reply_text=(
+                "No worries at all! Let's find you something delicious. 🍽️\n\n"
+                "What sounds good right now? You can choose a quick option below, or tell me your budget!"
+            ),
+            response_type=ChatResponseType.TEXT_RESPONSE,
             is_clarification=False,
-            intent="nutrition_inquiry",
-            matched_items=matched_out,
-            suggested_followups=followups,
-            session_id=session.session_id
+            intent=ChatIntent.UNCLEAR,
+            suggested_followups=["Budget bite under ₹50", "Hearty lunch under ₹120", "Spicy snack", "High protein meal"],
+            session_id=session.session_id,
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
-    # 5. Check for explicit contradictions in extracted preferences
-    conflict_msg = check_conflicts(extracted)
+    # 8. Handle COMPARE_FOOD (Section 11: Food comparison capability)
+    if intent == ChatIntent.COMPARE_FOOD:
+        comp_result = generate_food_comparison(raw_message, all_foods)
+        if comp_result:
+            reply = (
+                f"### Comparison: {comp_result.dish_a.name} vs {comp_result.dish_b.name}\n\n"
+                f"{comp_result.verdict}\n\n"
+                f"**Key Highlights**:\n" + "\n".join(f"• {h}" for h in comp_result.highlights)
+            )
+            followups = [
+                f"Add {comp_result.dish_a.name} to order",
+                f"Add {comp_result.dish_b.name} to order",
+                "Show other options",
+                "Under ₹100 meal"
+            ]
+            session.set_last_recommendations([comp_result.dish_a, comp_result.dish_b])
+            return ChatResponse(
+                reply_text=reply,
+                response_type=ChatResponseType.COMPARISON,
+                comparison=comp_result,
+                is_clarification=False,
+                intent=ChatIntent.COMPARE_FOOD,
+                suggested_followups=followups,
+                matched_items=[comp_result.dish_a, comp_result.dish_b],
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+        else:
+            return ChatResponse(
+                reply_text="I couldn't identify both dishes in your comparison on our canteen menu. Could you check the dish names (e.g. *'Maggi vs Paneer Roll'* or *'Dosa vs Sandwich'*)?",
+                response_type=ChatResponseType.TEXT_RESPONSE,
+                is_clarification=False,
+                intent=ChatIntent.COMPARE_FOOD,
+                suggested_followups=["Maggi vs Paneer Roll", "Cheese Sandwich vs Vada Pav", "Browse full menu"],
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+
+    # 9. Handle ORDER_FOOD (Section 10 & 24: Direct Order Action)
+    if intent == ChatIntent.ORDER_FOOD:
+        # First resolve reference (e.g. "add the first one", "order it", "add the roll")
+        target_item = session.resolve_reference(raw_message)
+        if not target_item:
+            target_item_obj = find_food_by_name(raw_message, all_foods)
+            if target_item_obj:
+                target_item = FoodOut.model_validate(target_item_obj)
+            elif session.last_recommendations:
+                target_item = session.last_recommendations[0]
+
+        if target_item:
+            action = OrderAction(
+                action_type="add_to_order",
+                item=target_item,
+                quantity=1,
+                total_price=target_item.price
+            )
+            session.conversation_stage = "ready_to_order"
+            reply = (
+                f"🛒 Added **{target_item.name}** (₹{int(target_item.price)}) directly to your order tray!\n\n"
+                f"• **Prep time**: ~{target_item.preparation_time} mins\n"
+                f"• **Calories**: {int(target_item.calories or 0)} kcal | **Protein**: {int(target_item.protein or 0)}g\n\n"
+                f"Would you like to pair it with a beverage, add dessert, or proceed to checkout?"
+            )
+            followups = [
+                "Pair with Iced Cold Coffee",
+                "Add Mango Lassi",
+                "View order tray",
+                "Checkout order"
+            ]
+            return ChatResponse(
+                reply_text=reply,
+                response_type=ChatResponseType.ORDER_CONFIRMATION,
+                order_action=action,
+                is_clarification=False,
+                intent=ChatIntent.ORDER_FOOD,
+                matched_items=[target_item],
+                suggested_followups=followups,
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+        else:
+            return ChatResponse(
+                reply_text="Which canteen dish would you like to order? Tell me the name or pick from our recommendations.",
+                response_type=ChatResponseType.TEXT_RESPONSE,
+                is_clarification=False,
+                intent=ChatIntent.ORDER_FOOD,
+                suggested_followups=["Recommend a meal", "What's fastest?", "Browse full menu"],
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+
+    # 10. Handle ASK_NUTRITION
+    if intent == ChatIntent.ASK_NUTRITION:
+        # Check if user asks about a previously recommended item (e.g. "how much protein does the first one have?")
+        ref_item = session.resolve_reference(raw_message)
+        if ref_item:
+            reply = handle_food_reference_question(raw_message, ref_item)
+            followups = [f"Add {ref_item.name} to order", "Show other high protein options", "Pair with a drink"]
+            return ChatResponse(
+                reply_text=reply,
+                response_type=ChatResponseType.NUTRITION_RESULT,
+                is_clarification=False,
+                intent=ChatIntent.ASK_NUTRITION,
+                matched_items=[ref_item],
+                suggested_followups=followups,
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+        else:
+            reply, matched, followups = handle_nutrition_inquiry(raw_message, all_foods)
+            matched_out = [FoodOut.model_validate(f) for f in matched]
+            session.set_last_recommendations(matched_out)
+            return ChatResponse(
+                reply_text=reply,
+                response_type=ChatResponseType.NUTRITION_RESULT,
+                is_clarification=False,
+                intent=ChatIntent.ASK_NUTRITION,
+                matched_items=matched_out,
+                suggested_followups=followups,
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+
+    # 11. Handle ASK_PRICE, ASK_AVAILABILITY, ASK_FOOD_DETAILS, SEARCH_FOOD
+    if intent in [ChatIntent.ASK_PRICE, ChatIntent.ASK_AVAILABILITY, ChatIntent.ASK_FOOD_DETAILS, ChatIntent.SEARCH_FOOD]:
+        ref_item = session.resolve_reference(raw_message)
+        if ref_item and any(w in raw_message.lower() for w in ["first", "second", "third", "it", "that", "this", "cheapest"]):
+            reply = handle_food_reference_question(raw_message, ref_item)
+            followups = [f"Add {ref_item.name} to order", "Show similar items", "Dishes under ₹100"]
+            return ChatResponse(
+                reply_text=reply,
+                response_type=ChatResponseType.FOOD_DETAILS,
+                is_clarification=False,
+                intent=intent,
+                matched_items=[ref_item],
+                suggested_followups=followups,
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+        else:
+            reply, matched, followups = handle_menu_inquiry(raw_message, all_foods)
+            matched_out = [FoodOut.model_validate(f) for f in matched]
+            if matched_out:
+                session.set_last_recommendations(matched_out)
+            return ChatResponse(
+                reply_text=reply,
+                response_type=ChatResponseType.FOOD_DETAILS,
+                is_clarification=False,
+                intent=intent,
+                matched_items=matched_out,
+                suggested_followups=followups,
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+
+    # 12. Handle VIEW_NUTRITION
+    if intent == ChatIntent.VIEW_NUTRITION:
+        if session.last_recommendations:
+            lines = ["📊 **Nutritional breakdown for your recommended canteen picks**:"]
+            for it in session.last_recommendations[:3]:
+                lines.append(
+                    f"• **{it.name}** (₹{int(it.price)}):\n"
+                    f"   {int(it.calories or 0)} kcal | {int(it.protein or 0)}g Protein | {int(it.carbohydrates or 0)}g Carbs | {int(it.fat or 0)}g Fat"
+                )
+            return ChatResponse(
+                reply_text="\n\n".join(lines),
+                response_type=ChatResponseType.NUTRITION_RESULT,
+                is_clarification=False,
+                intent=ChatIntent.VIEW_NUTRITION,
+                matched_items=session.last_recommendations[:3],
+                suggested_followups=[f"Add {session.last_recommendations[0].name} to order", "What's faster?", "Under ₹100"],
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+        else:
+            return ChatResponse(
+                reply_text="You haven't requested any food recommendations yet! Tell me what you'd like to eat, and I'll break down the exact nutrition for you.",
+                response_type=ChatResponseType.TEXT_RESPONSE,
+                is_clarification=False,
+                intent=ChatIntent.VIEW_NUTRITION,
+                suggested_followups=["High protein under ₹120", "Under ₹100 lunch", "Light snacks"],
+                session_id=session.session_id,
+                turn_count=session.turn_count,
+                conversation_stage=session.conversation_stage
+            )
+
+    # 13. Handle Mind-Changing & Preference Refinement (`ChatIntent.MODIFY_PREFERENCE`)
+    lower = raw_message.lower()
+    if any(p in lower for p in ["forget my previous", "start over", "reset session", "restart"]):
+        session.reset()
+        return ChatResponse(
+            reply_text="Preferences reset! ✨ What are you craving now? Tell me your budget, break time, or dietary goal.",
+            response_type=ChatResponseType.TEXT_RESPONSE,
+            is_clarification=False,
+            intent=ChatIntent.MODIFY_PREFERENCE,
+            suggested_followups=["Under ₹120 spicy lunch", "High protein meal", "Under 10 mins", "Snacks under ₹50"],
+            session_id=session.session_id,
+            turn_count=0,
+            conversation_stage="initial"
+        )
+
+    if any(p in lower for p in ["make it cheaper", "cheaper", "something cheaper"]):
+        current_b = session.preferences.budget or 100.0
+        session.preferences.budget = max(35.0, round(current_b * 0.75))
+
+    if any(p in lower for p in ["something faster", "faster", "quicker", "less time"]):
+        current_t = session.preferences.time_limit or 15
+        session.preferences.time_limit = min(current_t, 8)
+
+    if any(p in lower for p in ["more protein", "higher protein", "give me more protein"]):
+        session.preferences.protein_goal = "high"
+
+    if any(p in lower for p in ["not spicy", "i don't want spicy", "less spicy", "no spicy", "mild"]):
+        if "spicy" in (session.preferences.taste or []):
+            session.preferences.taste.remove("spicy")
+        if "mild" not in (session.preferences.taste or []):
+            session.preferences.taste.append("mild")
+
+    # 14. Merge into session preferences for conversational refinement
+    merged_prefs = session.update_preferences(extracted)
+    session.history.append({"user": raw_message, "extracted": extracted.model_dump()})
+
+    # Check for contradictions
+    conflict_msg = check_conflicts(merged_prefs)
     if conflict_msg:
         followups = generate_suggested_followups(clarification_type="conflict")
         return ChatResponse(
             reply_text=conflict_msg,
+            response_type=ChatResponseType.CLARIFICATION,
             is_clarification=True,
             clarification_type="conflict",
             suggested_followups=followups,
             session_id=session.session_id,
-            extracted_preferences=extracted.model_dump()
+            extracted_preferences=merged_prefs.model_dump(),
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
-    # 6. Check for initial turn missing budget (if not known from profile)
-    is_initial_turn = len(session.history) == 0
-    if is_initial_turn and session.preferences.budget is None and extracted.budget is None:
-        session.update_preferences(extracted)
-        followups = generate_suggested_followups(clarification_type="missing_budget")
-        return ChatResponse(
-            reply_text="I'd love to help you find the best canteen meal! What is your approximate budget for today? (e.g. under ₹50, ₹100, or ₹150)",
-            is_clarification=True,
-            clarification_type="missing_budget",
-            suggested_followups=followups,
-            session_id=session.session_id,
-            extracted_preferences=session.preferences.model_dump()
-        )
-
-    # 7. Merge into session preferences for conversational refinement
-    merged_prefs = session.update_preferences(extracted)
-    session.history.append({"user": raw_message, "extracted": extracted.model_dump()})
-
-    # 8. Deterministic filtering & scoring
-    all_foods = db.query(Food).all()
+    # 15. Execute deterministic recommendation engine (Section 7 & 8)
     result = generate_recommendations(all_foods, merged_prefs)
     session.last_result = result
 
-    # Check if contradiction was found after merge
-    if result.conflict_detected:
-        followups = generate_suggested_followups(clarification_type="conflict")
-        return ChatResponse(
-            reply_text=result.conflict_detected,
-            is_clarification=True,
-            clarification_type="conflict",
-            suggested_followups=followups,
-            session_id=session.session_id,
-            extracted_preferences=merged_prefs.model_dump()
-        )
-
-    # 9. Check if nothing available or tight constraints
+    # If no items found
     if not result.top_pick:
         followups = generate_suggested_followups(clarification_type="no_match")
         return ChatResponse(
             reply_text=result.explanation,
+            response_type=ChatResponseType.NO_MATCH,
             is_clarification=True,
             clarification_type="no_match",
             session_id=session.session_id,
             explanation=result.explanation,
             suggested_followups=followups,
-            extracted_preferences=merged_prefs.model_dump()
+            extracted_preferences=merged_prefs.model_dump(),
+            turn_count=session.turn_count,
+            conversation_stage=session.conversation_stage
         )
 
-    # 10. Generate explanation
-    turn_type = "refinement" if len(session.history) > 1 else "initial"
+    # Store Top 3 recommendations in session memory for future references
+    top_3_items = [result.top_pick.item] + [alt.item for alt in result.alternatives]
+    session.set_last_recommendations(top_3_items)
+
+    # 16. Build explanation text
+    turn_type = "refinement" if session.turn_count > 1 else "initial"
     explanation_text = generate_explanation_text(
         result.top_pick,
         result.combo,
@@ -367,15 +608,18 @@ async def chat_endpoint(
 
     return ChatResponse(
         reply_text=explanation_text,
+        response_type=ChatResponseType.FOOD_RECOMMENDATION,
         is_clarification=False,
         recommendation=result.top_pick,
         combo=result.combo,
         alternatives=result.alternatives,
         explanation=result.explanation,
         suggested_followups=followups,
-        intent="recommendation",
+        intent=intent,
         session_id=session.session_id,
-        extracted_preferences=merged_prefs.model_dump()
+        extracted_preferences=merged_prefs.model_dump(),
+        turn_count=session.turn_count,
+        conversation_stage=session.conversation_stage
     )
 
 
