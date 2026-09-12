@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canteen AI Chatbot Widget Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: #f8fafc;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 720px;
+      background: white;
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+    }
+    h1 {
+      color: #b45309;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #0f172a;
+      font-size: 13px;
+    }
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    .callout {
+      background: #ecfdf5;
+      border-left: 4px solid #10b981;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin: 18px 0;
+      font-size: 14px;
+      color: #065f46;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="badge">Embeddable Widget Demo</div>
+    <h1>🍽️ College Canteen Website</h1>
+    <p>Welcome to the college canteen portal! This page demonstrates the embeddable AI chatbot widget floating in the bottom-right corner.</p>
+    
+    <div class="callout">
+      <strong>✨ Zero-Hallucination Canteen Assistant</strong><br>
+      • Answers factual questions about prices, timing, ingredients, and spice level directly from SQLite.<br>
+      • Recommends top 3 dishes using content-based vector cosine similarity.<br>
+      • Powered by Groq's <code>llama-3.3-70b-versatile</code> with graceful secondary fallback.
+    </div>
+
+    <h3>How to Embed on Any Website:</h3>
+    <pre>&lt;!-- Add this single tag before &lt;/body&gt; on any website --&gt;
+&lt;script 
+  src="http://localhost:3000/widget.js" 
+  data-api="http://localhost:8000/api/canteen/chat"&gt;
+&lt;/script&gt;</pre>
+
+    <p>👉 Click the circular dish bubble (🍽️) in the bottom-right corner to test the widget!</p>
+  </div>
+
+  <!-- Embed Widget -->
+  <script src="/widget.js" data-api="http://localhost:8000/api/canteen/chat"></script>
+</body>
+</html>
+

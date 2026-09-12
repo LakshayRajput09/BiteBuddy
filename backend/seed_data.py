@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 from datetime import datetime, timedelta
 
 # Add backend directory to sys.path
@@ -588,8 +589,345 @@ FOOD_ITEMS = [
         "image_emoji": "🍨",
         "calories": 190.0, "protein": 4.0, "carbohydrates": 38.0, "fat": 3.0,
         "fiber": 2.5, "sugar": 28.0, "sodium": 70.0
+    },
+    {
+        "item_id": 35,
+        "name": "Amritsari Chole Kulche",
+        "description": "Tangy Amritsari spiced chickpeas topped with pickled ginger, green chillies, served with 2 soft baked butter kulchas.",
+        "category": "Rice",
+        "price": 65.0,
+        "ingredients": "chickpeas,refined flour kulcha,onion,tomato,amchur,spices",
+        "serving_size": "2 kulche + chole (300g)",
+        "vegetarian": True, "vegan": True, "jain": False,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": True, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 8, "available": True, "cuisine": "North Indian",
+        "tags": "hearty,spicy,filling,punjabi,lunch",
+        "image_emoji": "🫓",
+        "calories": 420.0, "protein": 14.0, "carbohydrates": 65.0, "fat": 11.0,
+        "fiber": 7.0, "sugar": 4.0, "sodium": 620.0
+    },
+    {
+        "item_id": 36,
+        "name": "Mumbai Pav Bhaji",
+        "description": "Sizzling spiced mashed potato, tomato, and green pea curry with dollops of melting butter, served with 2 warm toasted pavs.",
+        "category": "Snacks",
+        "price": 70.0,
+        "ingredients": "potatoes,tomatoes,peas,butter,pav,capsicum,pav bhaji masala",
+        "serving_size": "2 pav + bhaji (280g)",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": True, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 7, "available": True, "cuisine": "Maharashtrian",
+        "tags": "buttery,spicy,street-favorite,hot,snack",
+        "image_emoji": "🍲",
+        "calories": 460.0, "protein": 9.0, "carbohydrates": 58.0, "fat": 22.0,
+        "fiber": 6.0, "sugar": 5.0, "sodium": 680.0
+    },
+    {
+        "item_id": 37,
+        "name": "Soya Chaap Tikka Roll",
+        "description": "Tandoor-marinated protein-packed soya chaap chunks rolled with sliced onions and spicy mint chutney in a whole wheat wrap.",
+        "category": "Roll",
+        "price": 75.0,
+        "ingredients": "soya chaap,onion,capsicum,wheat roti,mint chutney,tandoori spices",
+        "serving_size": "1 roll (220g)",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": True, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 8, "available": True, "cuisine": "North Indian",
+        "tags": "protein-rich,vegetarian,spicy,wrap",
+        "image_emoji": "🌯",
+        "calories": 310.0, "protein": 15.0, "carbohydrates": 34.0, "fat": 11.0,
+        "fiber": 5.0, "sugar": 3.0, "sodium": 540.0
+    },
+    {
+        "item_id": 38,
+        "name": "Paneer Butter Masala Rice Bowl",
+        "description": "Rich velvety cottage cheese cubes in aromatic tomato-cashew makhani gravy over steaming jeera basmati rice.",
+        "category": "Rice",
+        "price": 95.0,
+        "ingredients": "paneer,basmati rice,butter,cream,tomato gravy,cashew,spices",
+        "serving_size": "1 bowl (360g)",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": False, "contains_nuts": True,
+        "spicy": False, "sweet": True,
+        "preparation_time": 9, "available": True, "cuisine": "North Indian",
+        "tags": "rich,makhani,creamy,comfort,indulgent",
+        "image_emoji": "🍛",
+        "calories": 520.0, "protein": 17.0, "carbohydrates": 68.0, "fat": 20.0,
+        "fiber": 4.0, "sugar": 6.0, "sodium": 580.0
+    },
+    {
+        "item_id": 39,
+        "name": "Dal Makhani Rice Bowl",
+        "description": "Slow-cooked creamy black lentils simmered overnight with butter and fresh cream, served with steamed basmati rice.",
+        "category": "Rice",
+        "price": 80.0,
+        "ingredients": "black urad dal,kidney beans,basmati rice,butter,cream,spices",
+        "serving_size": "1 bowl (350g)",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": False, "contains_nuts": False,
+        "spicy": False, "sweet": False,
+        "preparation_time": 7, "available": True, "cuisine": "North Indian",
+        "tags": "slow-cooked,creamy,wholesome,classic,comfort",
+        "image_emoji": "🍛",
+        "calories": 480.0, "protein": 15.0, "carbohydrates": 64.0, "fat": 17.0,
+        "fiber": 8.0, "sugar": 3.0, "sodium": 510.0
+    },
+    {
+        "item_id": 40,
+        "name": "Chicken Curry Rice Bowl",
+        "description": "Homestyle slow-braised tender chicken curry infused with whole garam masala over fragrant basmati rice.",
+        "category": "Rice",
+        "price": 110.0,
+        "ingredients": "tender chicken,basmati rice,onion gravy,ginger,garlic,spices",
+        "serving_size": "1 bowl (360g)",
+        "vegetarian": False, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": False, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 10, "available": True, "cuisine": "Indian",
+        "tags": "non-veg,protein,spicy,satisfying,high-protein",
+        "image_emoji": "🍗",
+        "calories": 510.0, "protein": 28.0, "carbohydrates": 62.0, "fat": 16.0,
+        "fiber": 4.0, "sugar": 3.0, "sodium": 650.0
+    },
+    {
+        "item_id": 41,
+        "name": "Mysore Masala Dosa",
+        "description": "Extra-crispy fermented rice crepe smeared with fiery red garlic chutney and stuffed with spiced potato masala.",
+        "category": "Snacks",
+        "price": 75.0,
+        "ingredients": "rice-lentil batter,spicy garlic red chutney,potato masala,sambar,coconut chutney",
+        "serving_size": "1 dosa (220g)",
+        "vegetarian": True, "vegan": True, "jain": False,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": False, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 8, "available": True, "cuisine": "South Indian",
+        "tags": "crispy,spicy,garlic,traditional,breakfast",
+        "image_emoji": "🥞",
+        "calories": 380.0, "protein": 7.0, "carbohydrates": 56.0, "fat": 14.0,
+        "fiber": 5.0, "sugar": 3.0, "sodium": 590.0
+    },
+    {
+        "item_id": 42,
+        "name": "Medu Vada Sambar (2 pcs)",
+        "description": "Deep-fried golden savory lentil donuts, crispy outside and fluffy inside, served with hot sambar and fresh coconut dip.",
+        "category": "Snacks",
+        "price": 45.0,
+        "ingredients": "urad dal,curry leaves,crushed black pepper,sambar,coconut chutney",
+        "serving_size": "2 vadas (180g)",
+        "vegetarian": True, "vegan": True, "jain": False,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": False, "contains_nuts": False,
+        "spicy": False, "sweet": False,
+        "preparation_time": 6, "available": True, "cuisine": "South Indian",
+        "tags": "crispy,fluffy,savory,classic,breakfast",
+        "image_emoji": "🍩",
+        "calories": 310.0, "protein": 9.0, "carbohydrates": 38.0, "fat": 14.0,
+        "fiber": 4.5, "sugar": 2.0, "sodium": 460.0
+    },
+    {
+        "item_id": 43,
+        "name": "Peri Peri French Fries",
+        "description": "Golden crispy crinkle-cut potato fries dusted generously with zesty African bird's eye peri peri seasoning.",
+        "category": "Snacks",
+        "price": 55.0,
+        "ingredients": "potatoes,peri peri spice mix,salt,oil",
+        "serving_size": "1 basket (150g)",
+        "vegetarian": True, "vegan": True, "jain": False,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": False, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 5, "available": True, "cuisine": "Continental",
+        "tags": "crunchy,spicy,finger-food,fast,snack",
+        "image_emoji": "🍟",
+        "calories": 290.0, "protein": 4.0, "carbohydrates": 40.0, "fat": 13.0,
+        "fiber": 3.5, "sugar": 1.0, "sodium": 490.0
+    },
+    {
+        "item_id": 44,
+        "name": "Bombay Masala Toast Sandwich",
+        "description": "Triple-decker toasted sandwich packed with spiced turmeric potato mash, crunchy beetroot, onion rings, cucumber, and green chutney.",
+        "category": "Snacks",
+        "price": 55.0,
+        "ingredients": "bread,potato masala,beetroot,onion,cheese,mint chutney,butter",
+        "serving_size": "2 halves (200g)",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": True, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 6, "available": True, "cuisine": "Street Food",
+        "tags": "toasted,spicy,vegetable-packed,cheesy,snack",
+        "image_emoji": "🥪",
+        "calories": 320.0, "protein": 8.0, "carbohydrates": 48.0, "fat": 11.0,
+        "fiber": 4.0, "sugar": 4.0, "sodium": 520.0
+    },
+    {
+        "item_id": 45,
+        "name": "Chilli Garlic Noodles",
+        "description": "Wok-charred wheat noodles tossed with pungent crushed garlic, dry red chili flakes, bell peppers, and scallions.",
+        "category": "Noodles",
+        "price": 75.0,
+        "ingredients": "wheat noodles,crushed garlic,red chili flakes,capsicum,cabbage,soy sauce",
+        "serving_size": "1 bowl (280g)",
+        "vegetarian": True, "vegan": True, "jain": False,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": True, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 8, "available": True, "cuisine": "Indo-Chinese",
+        "tags": "fiery,garlic,wok-tossed,spicy,noodles",
+        "image_emoji": "🥢",
+        "calories": 370.0, "protein": 8.0, "carbohydrates": 58.0, "fat": 12.0,
+        "fiber": 4.0, "sugar": 3.0, "sodium": 640.0
+    },
+    {
+        "item_id": 46,
+        "name": "Peri Peri Maggi",
+        "description": "Piping hot 2-minute canteen maggi noodles spiked with smoky fiery peri peri herbs, butter, and crunchy sweet corn.",
+        "category": "Noodles",
+        "price": 50.0,
+        "ingredients": "maggi noodles,peri peri herbs,sweet corn,butter,tastemaker",
+        "serving_size": "1 bowl (220g)",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": True, "contains_nuts": False,
+        "spicy": True, "sweet": False,
+        "preparation_time": 7, "available": True, "cuisine": "Indian Fusion",
+        "tags": "hot,cheesy-kick,canteen-style,spicy,maggi",
+        "image_emoji": "🍜",
+        "calories": 330.0, "protein": 7.0, "carbohydrates": 46.0, "fat": 13.0,
+        "fiber": 3.0, "sugar": 3.0, "sodium": 590.0
+    },
+    {
+        "item_id": 47,
+        "name": "Oreo Chocolate Thick Shake",
+        "description": "Creamy, indulgent whole milk shake blended with crunchy Oreo biscuits, vanilla ice cream, and Hershey's chocolate drizzle.",
+        "category": "Beverages",
+        "price": 65.0,
+        "ingredients": "whole milk,oreo cookies,vanilla ice cream,chocolate syrup",
+        "serving_size": "350 ml",
+        "vegetarian": True, "vegan": False, "jain": False,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": True, "contains_nuts": False,
+        "spicy": False, "sweet": True,
+        "preparation_time": 4, "available": True, "cuisine": "Continental",
+        "tags": "thick,sweet,rich,dessert-shake,cold",
+        "image_emoji": "🥤",
+        "calories": 390.0, "protein": 8.0, "carbohydrates": 54.0, "fat": 16.0,
+        "fiber": 2.0, "sugar": 42.0, "sodium": 180.0
+    },
+    {
+        "item_id": 48,
+        "name": "Kesar Badam Milk (Chilled)",
+        "description": "Refreshing traditional royal saffron-infused milk blended with ground almonds, green cardamom, and crushed pistachios.",
+        "category": "Beverages",
+        "price": 45.0,
+        "ingredients": "milk,almonds,saffron (kesar),cardamom,pistachios,sugar",
+        "serving_size": "250 ml",
+        "vegetarian": True, "vegan": False, "jain": True,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": False, "contains_nuts": True,
+        "spicy": False, "sweet": True,
+        "preparation_time": 3, "available": True, "cuisine": "Indian",
+        "tags": "royal,cooling,nuts,healthy,cold",
+        "image_emoji": "🥛",
+        "calories": 220.0, "protein": 9.0, "carbohydrates": 26.0, "fat": 9.0,
+        "fiber": 2.5, "sugar": 22.0, "sodium": 95.0
+    },
+    {
+        "item_id": 49,
+        "name": "Lemon Iced Tea",
+        "description": "Chilled black tea infused with fresh citrus lemon juice, cooling garden mint leaves, and light brown sugar over crushed ice.",
+        "category": "Beverages",
+        "price": 35.0,
+        "ingredients": "brewed tea,fresh lemon juice,mint sprigs,sugar,crushed ice",
+        "serving_size": "300 ml",
+        "vegetarian": True, "vegan": True, "jain": True,
+        "contains_egg": False, "contains_dairy": False, "contains_gluten": False, "contains_nuts": False,
+        "spicy": False, "sweet": True,
+        "preparation_time": 2, "available": True, "cuisine": "Continental",
+        "tags": "refreshing,citrus,iced,summer,low-calorie",
+        "image_emoji": "🍹",
+        "calories": 90.0, "protein": 0.5, "carbohydrates": 22.0, "fat": 0.0,
+        "fiber": 0.5, "sugar": 20.0, "sodium": 15.0
+    },
+    {
+        "item_id": 50,
+        "name": "Spongy Rasgulla (2 pcs)",
+        "description": "Light, melt-in-mouth Kolkata-style cottage cheese spheres gently poached in fragrant rose and cardamom infused light sugar syrup.",
+        "category": "Sweets",
+        "price": 35.0,
+        "ingredients": "chhena cottage cheese,sugar syrup,rose water,cardamom",
+        "serving_size": "2 pcs (120g)",
+        "vegetarian": True, "vegan": False, "jain": True,
+        "contains_egg": False, "contains_dairy": True, "contains_gluten": False, "contains_nuts": False,
+        "spicy": False, "sweet": True,
+        "preparation_time": 2, "available": True, "cuisine": "Indian",
+        "tags": "sweet,juicy,traditional,light,dessert",
+        "image_emoji": "⚪",
+        "calories": 180.0, "protein": 5.0, "carbohydrates": 38.0, "fat": 2.0,
+        "fiber": 0.0, "sugar": 34.0, "sodium": 40.0
     }
 ]
+
+
+FOOD_IMAGE_URLS = {
+    "paneer kathi roll": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=800&q=80",
+    "chicken tikka roll": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=800&q=80",
+    "egg bhurji roll": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=800&q=80",
+    "aloo corn roll": "https://images.unsplash.com/photo-1509722747041-616f39b57569?auto=format&fit=crop&w=800&q=80",
+    "soya chaap tikka roll": "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=800&q=80",
+    "veg biryani": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=800&q=80",
+    "chicken dum biryani": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=800&q=80",
+    "rajma chawal": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80",
+    "jain dal khichdi": "https://images.unsplash.com/photo-1546833998-877b37c2e5c4?auto=format&fit=crop&w=800&q=80",
+    "curd rice": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80",
+    "schezwan fried rice": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80",
+    "paneer butter masala rice bowl": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80",
+    "dal makhani rice bowl": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=800&q=80",
+    "chicken curry rice bowl": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=800&q=80",
+    "amritsari chole kulche": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=800&q=80",
+    "cheese grilled sandwich": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=800&q=80",
+    "bombay masala toast sandwich": "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=800&q=80",
+    "masala dosa": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=80",
+    "mysore masala dosa": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=80",
+    "samosa": "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80",
+    "mumbai vada pav": "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=800&q=80",
+    "veg cutlet": "https://images.unsplash.com/photo-1541544741938-0af808871cc0?auto=format&fit=crop&w=800&q=80",
+    "bun maska": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80",
+    "indori poha": "https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=800&q=80",
+    "idli sambar": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=80",
+    "medu vada sambar": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=80",
+    "chole bhature": "https://images.unsplash.com/photo-1626132647523-66f5bf380027?auto=format&fit=crop&w=800&q=80",
+    "mumbai pav bhaji": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?auto=format&fit=crop&w=800&q=80",
+    "peri peri french fries": "https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&w=800&q=80",
+    "classic masala maggi": "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=800&q=80",
+    "cheese masala maggi": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=800&q=80",
+    "peri peri maggi": "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=800&q=80",
+    "veg hakka noodles": "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80",
+    "egg hakka noodles": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?auto=format&fit=crop&w=800&q=80",
+    "chilli garlic noodles": "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80",
+    "chilli paneer dry": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=800&q=80",
+    "chilli chicken dry": "https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=800&q=80",
+    "cutting masala chai": "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=800&q=80",
+    "south indian filter coffee": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80",
+    "iced cold coffee": "https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=800&q=80",
+    "fresh lime soda": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=800&q=80",
+    "alphonso mango lassi": "https://images.unsplash.com/photo-1571006682875-a831e5055b88?auto=format&fit=crop&w=800&q=80",
+    "chilled masala buttermilk": "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80",
+    "oreo chocolate thick shake": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=80",
+    "kesar badam milk": "https://images.unsplash.com/photo-1556881286-fc6915169721?auto=format&fit=crop&w=800&q=80",
+    "lemon iced tea": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=800&q=80",
+    "warm gulab jamun": "https://images.unsplash.com/photo-1605197154344-934c56e3b5e0?auto=format&fit=crop&w=800&q=80",
+    "chocolate walnut brownie": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=80",
+    "fresh fruit custard": "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80",
+    "spongy rasgulla": "https://images.unsplash.com/photo-1579372786545-d24232daf58c?auto=format&fit=crop&w=800&q=80",
+}
+
+_SORTED_KEYS = sorted(FOOD_IMAGE_URLS.keys(), key=lambda k: len(k), reverse=True)
+
+
+def resolve_food_image_url(name: str) -> str:
+    cleaned = re.sub(r'\([0-9]+\s*pcs\)', '', name, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\([a-z0-9/\s]+\)', '', cleaned, flags=re.IGNORECASE).strip().lower()
+    for k in _SORTED_KEYS:
+        if k in cleaned or k in name.lower():
+            return FOOD_IMAGE_URLS[k]
+    return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80"
 
 
 def seed_database():
@@ -597,10 +935,12 @@ def seed_database():
     db = SessionLocal()
 
     # 1. Seed or update Food items
-    print("Seeding/updating food items with nutrition data...")
+    print("Seeding/updating food items with nutrition data and verified images...")
     count = 0
     for data in FOOD_ITEMS:
         item_id = data["item_id"]
+        # Set authentic image URL
+        data["image_url"] = resolve_food_image_url(data["name"])
         existing = db.query(Food).filter(Food.item_id == item_id).first()
         if existing:
             for k, v in data.items():
@@ -649,74 +989,7 @@ def seed_database():
         db.add(goals)
         db.commit()
 
-        # Seed today's initial consumed orders so dashboard shows exact prompt state:
-        # Calories: 850 / 2200, Protein: 48 / 120, Carbs: 105 / 250, Fat: 28 / 70
-        # Order 1: Breakfast
-        order_1 = Order(
-            student_id=student_id,
-            total_price=95.0,
-            total_calories=400.0,
-            total_protein=26.0,
-            total_carbs=45.0,
-            total_fat=14.0,
-            status="completed",
-            created_at=datetime.utcnow() - timedelta(hours=4)
-        )
-        db.add(order_1)
-        db.commit()
-
-        item_1 = OrderItem(
-            order_id=order_1.id,
-            food_id=11,  # Cheese Sandwich
-            food_name="Paneer Sandwich",
-            quantity=1,
-            price=50.0,
-            calories=320.0,
-            protein=20.0,
-            carbohydrates=35.0,
-            fat=12.0
-        )
-        item_2 = OrderItem(
-            order_id=order_1.id,
-            food_id=29,  # Lemon Soda
-            food_name="Lemon Soda",
-            quantity=1,
-            price=30.0,
-            calories=80.0,
-            protein=6.0,
-            carbohydrates=10.0,
-            fat=2.0
-        )
-        db.add_all([item_1, item_2])
-
-        # Order 2: Lunch
-        order_2 = Order(
-            student_id=student_id,
-            total_price=80.0,
-            total_calories=450.0,
-            total_protein=22.0,
-            total_carbs=60.0,
-            total_fat=14.0,
-            status="completed",
-            created_at=datetime.utcnow() - timedelta(hours=1)
-        )
-        db.add(order_2)
-        db.commit()
-
-        item_3 = OrderItem(
-            order_id=order_2.id,
-            food_id=5,  # Veg Biryani
-            food_name="Veg Biryani",
-            quantity=1,
-            price=80.0,
-            calories=450.0,
-            protein=22.0,
-            carbohydrates=60.0,
-            fat=14.0
-        )
-        db.add(item_3)
-        db.commit()
-        print(f"Created demo student account '{student.name}' with initial order history.")
+        print(f"Created demo student account '{student.name}' with clean slate (no initial orders).")
 
     # 3. Seed Demo Owner
     owner_id = "owner_ramesh"

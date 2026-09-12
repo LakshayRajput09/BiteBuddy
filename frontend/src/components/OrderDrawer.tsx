@@ -33,9 +33,9 @@ export default function OrderDrawer() {
 
       {/* Drawer */}
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col">
+        <div className="w-screen max-w-md liquid-glass shadow-2xl flex flex-col border-l border-white/80">
           {/* Header */}
-          <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-[#FAFAF8]">
+          <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/60 backdrop-blur-xl">
             <div className="flex items-center gap-2">
               <span className="text-xl">🛍️</span>
               <div>
@@ -45,7 +45,7 @@ export default function OrderDrawer() {
             </div>
             <button
               onClick={closeDrawer}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-xl liquid-glass-pill"
             >
               ✕
             </button>
@@ -53,7 +53,7 @@ export default function OrderDrawer() {
 
           {/* Success Notification */}
           {orderSuccessMessage && (
-            <div className="mx-4 mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-medium flex items-center gap-2 animate-bounce">
+            <div className="mx-4 mt-4 p-3 bg-emerald-500/15 backdrop-blur-md border border-emerald-300 text-emerald-900 rounded-xl text-sm font-medium flex items-center gap-2 animate-bounce">
               <span>{orderSuccessMessage}</span>
             </div>
           )}
@@ -72,7 +72,7 @@ export default function OrderDrawer() {
               cart.map(({ food, quantity }) => (
                 <div
                   key={food.item_id}
-                  className="p-3.5 rounded-2xl border border-gray-100 bg-[#FDFDFD] hover:border-gray-200 shadow-sm transition-all"
+                  className="p-3.5 rounded-2xl liquid-glass-card shadow-xs transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5">
@@ -127,28 +127,28 @@ export default function OrderDrawer() {
 
           {/* Footer & Dynamic Cumulative Summary */}
           {cart.length > 0 && (
-            <div className="p-5 border-t border-gray-100 bg-[#FAFAF8] space-y-3">
+            <div className="p-5 border-t border-white/60 bg-white/75 backdrop-blur-xl space-y-3">
               {/* Macros Breakdown */}
-              <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl space-y-1.5">
+              <div className="p-3 bg-white/50 backdrop-blur-md border border-white/70 rounded-xl space-y-1.5 shadow-2xs">
                 <div className="flex justify-between items-center text-xs font-semibold text-emerald-950">
                   <span>⚡ Total Nutrition Per Serving</span>
-                  <span>{totalCalories} kcal</span>
+                  <span className="font-bold">{totalCalories} kcal</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t border-emerald-100/60 text-[11px]">
-                  <div className="bg-white/70 py-1 rounded-md">
-                    <span className="text-gray-500 block">Protein</span>
+                <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t border-white/60 text-[11px]">
+                  <div className="liquid-glass-pill py-1 rounded-lg">
+                    <span className="text-slate-400 block text-[9px] uppercase font-semibold">Protein</span>
                     <span className="font-bold text-emerald-700">{totalProtein}g</span>
                   </div>
-                  <div className="bg-white/70 py-1 rounded-md">
-                    <span className="text-gray-500 block">Carbs</span>
+                  <div className="liquid-glass-pill py-1 rounded-lg">
+                    <span className="text-slate-400 block text-[9px] uppercase font-semibold">Carbs</span>
                     <span className="font-bold text-amber-700">{totalCarbs}g</span>
                   </div>
-                  <div className="bg-white/70 py-1 rounded-md">
-                    <span className="text-gray-500 block">Fat</span>
+                  <div className="liquid-glass-pill py-1 rounded-lg">
+                    <span className="text-slate-400 block text-[9px] uppercase font-semibold">Fat</span>
                     <span className="font-bold text-rose-700">{totalFat}g</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-emerald-700/80 text-center pt-0.5">
+                <p className="text-[10px] text-emerald-800 text-center pt-0.5 font-medium">
                   Approx. nutrition • Updates your daily dashboard intake on order
                 </p>
               </div>
@@ -156,20 +156,20 @@ export default function OrderDrawer() {
               {/* Price & Action */}
               <div className="flex items-center justify-between pt-1">
                 <div>
-                  <span className="text-xs text-gray-400 block">Total Amount</span>
+                  <span className="text-xs text-slate-400 block font-medium">Total Amount</span>
                   <span className="text-2xl font-black text-[#0C3B25]">₹{totalPrice}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={clearOrder}
-                    className="px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl font-medium transition-all"
+                    className="px-3 py-2.5 text-xs text-slate-500 hover:text-slate-800 rounded-xl font-medium transition-all liquid-glass-pill"
                   >
                     Clear
                   </button>
                   <button
                     onClick={placeOrder}
                     disabled={isPlacingOrder}
-                    className="px-6 py-2.5 bg-[#059669] hover:bg-[#047857] text-white text-sm font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2.5 liquid-glass-button text-white text-sm font-bold rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     {isPlacingOrder ? "Placing Order..." : "Confirm & Order →"}
                   </button>

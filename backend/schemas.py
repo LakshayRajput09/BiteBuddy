@@ -68,6 +68,7 @@ class StructuredIntent(BaseModel):
     target_dish_b_name: Optional[str] = None
     constraints: StructuredConstraints = Field(default_factory=StructuredConstraints)
     preferences: StructuredPreferences = Field(default_factory=StructuredPreferences)
+    llm_provider: str = "rule_based"
 
 
 class RemovedItem(BaseModel):
@@ -95,6 +96,7 @@ class DebugInfo(BaseModel):
     removed_items: List[RemovedItem]
     final_scores: List[ScoreEntry]
     top_3: List[str]
+    llm_provider: str = "rule_based"
 
 
 class FoodOut(BaseModel):
@@ -248,6 +250,19 @@ class ChatResponse(BaseModel):
 
 class AvailabilityUpdate(BaseModel):
     available: bool
+
+
+class CanteenChatRequest(BaseModel):
+    message: str
+
+
+class CanteenChatResponse(BaseModel):
+    intent: str
+    reply_text: str
+    matched_items: List[Dict[str, Any]] = Field(default_factory=list)
+    count: int = 0
+    constraints: Optional[Dict[str, Any]] = None
+    classified_intent: Optional[str] = None
 
 
 # ==================================================

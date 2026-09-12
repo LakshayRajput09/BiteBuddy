@@ -222,7 +222,7 @@ The following standard demonstration script has been verified and functions seam
 1. **Step 1: Student Login & Initial Intake State**
    - Navigate to `/login` and click **"Demo Login: Lakshay (Student)"**.
    - Redirects to `/student/dashboard`.
-   - Initial intake shows **850 kcal / 2200 kcal**, **48g / 120g Protein**, **105g Carbs**, **28g Fat** (derived from past orders).
+   - Initial intake shows strictly **0 kcal / 2200 kcal**, **0g / 120g Protein**, **0g Carbs**, **0g Fat**, and 0 consumed meals (clean slate; nothing is added until an order is placed).
 
 2. **Step 2: AI Recommendation Request**
    - Go to `/chat` or `/recommendations` and enter: `"I'm hungry and want something spicy."`
@@ -241,15 +241,17 @@ The following standard demonstration script has been verified and functions seam
      - Total: ₹105
      - Nutrition: 420 kcal • 18g Protein • 52g Carbs • 16g Fat.
 
-4. **Step 4: Confirm Order & Nutrition Update**
-   - Click **"Confirm Order"**.
+4. **Step 4: Confirm Order & Dynamic Nutrition Accumulation**
+   - Initial State: Today's Nutrition starts cleanly at **0 kcal, 0g Protein, 0g Carbs, 0g Fat, and 0 meals recorded** (nothing is pre-added unless an order is actually placed).
+   - Click **"Confirm Order"** on the 420 kcal combo (Paneer Kathi Roll + Fresh Lime Soda).
    - Success toast appears: *"Order #... placed successfully!"*.
    - Order history (`/student/orders`) records the new order with frozen macros.
-   - Today's Nutrition tracker (`/student/nutrition`) immediately updates:
-     - Calories: **1,270 kcal** (850 + 420)
-     - Protein: **66g** (48 + 18)
-     - Carbs: **157g** (105 + 52)
-     - Fat: **44g** (28 + 16)
+   - Today's Nutrition tracker (`/student/nutrition` & `/student/dashboard`) immediately updates dynamically:
+     - Calories: **420 kcal** (0 + 420)
+     - Protein: **18g** (0 + 18)
+     - Carbs: **52g** (0 + 52)
+     - Fat: **16g** (0 + 16)
+     - Meals Today: **1 item recorded** (*Paneer Kathi Roll + Fresh Lime Soda*)
 
 5. **Step 5: Cafeteria Owner Marks Item Unavailable**
    - Click **"Switch to Owner"** in the top navbar (or log in as *Chef Ramesh* at `/login`).

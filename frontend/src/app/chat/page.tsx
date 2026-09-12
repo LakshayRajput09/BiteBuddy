@@ -94,6 +94,15 @@ function DevDebugAccordion({ debugInfo }: { debugInfo: DebugInfoData }) {
           <span className="px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-700/50 text-[10px] font-sans font-semibold">
             {debugInfo.detected_intent}
           </span>
+          {debugInfo.llm_provider && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-sans font-semibold border ${
+              debugInfo.llm_provider.includes("gemini")
+                ? "bg-purple-950 text-purple-300 border-purple-700/50"
+                : "bg-slate-800 text-slate-300 border-slate-700"
+            }`}>
+              {debugInfo.llm_provider.includes("gemini") ? `✨ ${debugInfo.llm_provider}` : `⚡ ${debugInfo.llm_provider}`}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-slate-400">
           <span className="text-[10px] hidden sm:inline">
@@ -118,6 +127,14 @@ function DevDebugAccordion({ debugInfo }: { debugInfo: DebugInfoData }) {
               <span className="text-slate-500">Detected Intent: </span>
               <span className="text-indigo-300 font-bold">{debugInfo.detected_intent}</span>
             </div>
+            {debugInfo.llm_provider && (
+              <div className="text-slate-300">
+                <span className="text-slate-500">Provider Engine: </span>
+                <span className={debugInfo.llm_provider.includes("gemini") ? "text-purple-300 font-semibold" : "text-slate-400 font-semibold"}>
+                  {debugInfo.llm_provider}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Step 2: Extracted Constraints (Hard Filter) */}
@@ -468,12 +485,12 @@ export default function ChatPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 flex flex-col h-[calc(100vh-5.5rem)]">
-      {/* Chat Window Container */}
-      <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+      {/* Chat Window Container with Liquid Glass */}
+      <div className="flex-1 liquid-glass rounded-3xl shadow-xl flex flex-col overflow-hidden border border-white/80">
         {/* Chat Header */}
-        <div className="p-3.5 sm:px-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 backdrop-blur">
+        <div className="p-3.5 sm:px-6 border-b border-white/60 flex items-center justify-between bg-white/60 backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#0C3B25] text-white flex items-center justify-center shadow-sm">
+            <div className="w-10 h-10 rounded-2xl bg-[#0C3B25] text-white flex items-center justify-center shadow-md border border-white/20">
               <Sparkles className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
@@ -481,7 +498,7 @@ export default function ChatPage() {
                 <h2 className="font-black text-slate-900 text-sm sm:text-base tracking-tight">
                   Chat with BiteBuddy
                 </h2>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full liquid-glass-pill text-emerald-850 border-emerald-300/60 shadow-2xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Canteen Open
                 </span>
@@ -505,8 +522,8 @@ export default function ChatPage() {
               title={devDebugMode ? "Developer Debug Mode: ON" : "Developer Debug Mode: OFF"}
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
                 devDebugMode
-                  ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
-                  : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-transparent"
+                  ? "bg-amber-100/90 text-amber-900 border border-amber-300 shadow-2xs"
+                  : "liquid-glass-pill text-slate-600 hover:text-slate-900"
               }`}
             >
               <Bug className="w-3.5 h-3.5 text-amber-600" />
@@ -518,19 +535,19 @@ export default function ChatPage() {
               type="button"
               onClick={handleReset}
               title="Reset conversation"
-              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-white/60 rounded-xl transition-colors liquid-glass-pill"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
 
             <button
               onClick={toggleDrawer}
-              className="relative px-3 py-1.5 bg-[#0C3B25] hover:bg-[#082819] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+              className="relative px-3 py-1.5 liquid-glass-button rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+              <ShoppingBag className="w-3.5 h-3.5 text-emerald-200" />
               <span className="hidden sm:inline">Order Tray</span>
               {totalItems > 0 && (
-                <span className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
+                <span className="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 text-[10px] font-black flex items-center justify-center">
                   {totalItems}
                 </span>
               )}
@@ -539,7 +556,7 @@ export default function ChatPage() {
         </div>
 
         {/* Quick Filter Presets Row */}
-        <div className="px-3 sm:px-6 py-2 bg-[#FAFAF8] border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
+        <div className="px-3 sm:px-6 py-2 bg-white/40 backdrop-blur-md border-b border-white/60 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0 mr-1">
             Quick Ask:
           </span>
@@ -548,7 +565,7 @@ export default function ChatPage() {
               key={idx}
               type="button"
               onClick={() => handleSend(f.prompt)}
-              className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 border border-slate-200 text-slate-700 font-medium text-[11px] shrink-0 hover:border-emerald-300 transition-all shadow-xs"
+              className="px-2.5 py-1 rounded-full liquid-glass-pill text-slate-700 font-medium text-[11px] shrink-0 transition-all hover:scale-105"
             >
               {f.label}
             </button>
@@ -584,10 +601,10 @@ export default function ChatPage() {
                   <div
                     className={`rounded-2xl p-3.5 sm:p-4 text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-xs ${
                       isUser
-                        ? "bg-[#ECFDF5] text-emerald-950 font-medium rounded-tr-none border border-emerald-200/80"
+                        ? "bg-emerald-500/15 backdrop-blur-md text-emerald-950 font-medium rounded-tr-none border border-emerald-300/60 shadow-xs"
                         : msg.isClarification
-                        ? "bg-amber-50 text-amber-950 border border-amber-200 rounded-tl-none"
-                        : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
+                        ? "bg-amber-500/15 backdrop-blur-md text-amber-950 border border-amber-300/60 rounded-tl-none shadow-xs"
+                        : "liquid-glass text-slate-900 rounded-tl-none shadow-xs"
                     }`}
                   >
                     {/* Clarification Alert Header */}
@@ -1197,7 +1214,7 @@ export default function ChatPage() {
         </div>
 
         {/* Bottom Area: Input Bar & Controls */}
-        <div className="p-3 sm:p-4 border-t border-slate-200 bg-white space-y-2">
+        <div className="p-3 sm:p-4 border-t border-white/60 bg-white/70 backdrop-blur-xl space-y-2">
           {/* Quick Suggestion Chips Header */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
             {INITIAL_SUGGESTIONS.map((chip, idx) => (
@@ -1205,7 +1222,7 @@ export default function ChatPage() {
                 key={idx}
                 type="button"
                 onClick={() => handleSend(chip)}
-                className="px-3 py-1.5 rounded-full bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-slate-700 text-xs font-medium whitespace-nowrap transition-colors shadow-2xs hover:border-emerald-300 shrink-0"
+                className="px-3 py-1.5 rounded-full liquid-glass-pill text-slate-700 text-xs font-medium whitespace-nowrap transition-all hover:scale-105 shrink-0"
               >
                 {chip}
               </button>
@@ -1226,10 +1243,10 @@ export default function ChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={isListening ? "Listening to your voice..." : "Tell me what you crave, budget, or macros (e.g. ₹120 spicy high protein)..."}
-                className={`w-full pl-4 pr-11 py-3 rounded-2xl border text-xs sm:text-sm focus:outline-none focus:ring-2 bg-white shadow-xs transition-all ${
+                className={`w-full pl-4 pr-11 py-3 rounded-2xl liquid-glass-input text-xs sm:text-sm text-slate-800 placeholder-slate-400 ${
                   isListening
                     ? "border-rose-400 ring-2 ring-rose-200 placeholder:text-rose-500 font-medium"
-                    : "border-slate-200 focus:ring-emerald-500"
+                    : ""
                 }`}
                 disabled={loading}
               />
@@ -1242,7 +1259,7 @@ export default function ChatPage() {
                 className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-xl transition-all ${
                   isListening
                     ? "bg-rose-500 text-white animate-pulse"
-                    : "text-slate-400 hover:text-emerald-700 hover:bg-slate-100"
+                    : "text-slate-400 hover:text-emerald-700 hover:bg-white/60"
                 }`}
               >
                 {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -1252,7 +1269,7 @@ export default function ChatPage() {
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              className="w-11 h-11 rounded-2xl bg-[#059669] hover:bg-[#047857] text-white flex items-center justify-center shadow-md transition-all disabled:opacity-40 disabled:pointer-events-none shrink-0"
+              className="w-11 h-11 rounded-2xl liquid-glass-button text-white flex items-center justify-center shadow-md transition-all disabled:opacity-40 disabled:pointer-events-none shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>

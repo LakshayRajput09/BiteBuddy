@@ -3,14 +3,110 @@ import re
 import json
 from typing import Optional, Dict, Any, Tuple, List
 import httpx
-from schemas import (
-    PreferenceQuery, RecommendationCard, MealCombination,
-    FoodComparisonResult, FoodOut, ChatIntent, ChatResponseType, OrderAction,
-    StructuredConstraints, StructuredPreferences, StructuredIntent
-)
+try:
+    from schemas import (
+        PreferenceQuery, RecommendationCard, MealCombination,
+        FoodComparisonResult, FoodOut, ChatIntent, ChatResponseType, OrderAction,
+        StructuredConstraints, StructuredPreferences, StructuredIntent
+    )
+except ImportError:
+    from backend.schemas import (
+        PreferenceQuery, RecommendationCard, MealCombination,
+        FoodComparisonResult, FoodOut, ChatIntent, ChatResponseType, OrderAction,
+        StructuredConstraints, StructuredPreferences, StructuredIntent
+    )
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+def get_gemini_api_key() -> str:
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        try:
+            from dotenv import load_dotenv
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            root_dir = os.path.abspath(os.path.join(base_dir, ".."))
+            load_dotenv(os.path.join(root_dir, ".env"), override=False)
+            load_dotenv(os.path.join(base_dir, ".env"), override=False)
+            key = os.getenv("GEMINI_API_KEY", "").strip()
+        except Exception:
+            pass
+    return key
+
+
+def get_gemini_model() -> str:
+    return os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+
+
+def is_gemini_configured() -> bool:
+    return bool(get_gemini_api_key())
+
+
+async def call_gemini_api(
+    prompt: str,
+    json_mode: bool = False,
+    system_instruction: Optional[str] = None,
+    timeout: float = 6.0
+) -> Optional[str]:
+    """
+    Direct async client for Google Gemini API.
+    Supports system instructions and JSON mode (application/json).
+    Returns text response or None on failure/missing key.
+    """
+    key = get_gemini_api_key()
+    if not key:
+        return None
+
+    model = get_gemini_model()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+    headers = {
+        "x-goog-api-key": key,
+        "Content-Type": "application/json"
+    }
+
+    generation_config: Dict[str, Any] = {
+        "temperature": 0.2 if not json_mode else 0.1,
+    }
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
+
+    payload: Dict[str, Any] = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": generation_config
+    }
+
+    if system_instruction:
+        payload["systemInstruction"] = {
+            "parts": [{"text": system_instruction}]
+        }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "")
+            elif resp.status_code == 401 or resp.status_code == 403:
+                # Try Bearer authorization header fallback in case of token format
+                resp_bearer = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+                )
+                if resp_bearer.status_code == 200:
+                    data = resp_bearer.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "")
+            else:
+                print(f"Gemini API returned status {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        print(f"Gemini API request failed: {e}")
+
+    return None
 
 # Common food items/categories for exclusion parsing
 EXCLUSION_WORDS = [
@@ -176,7 +272,7 @@ async def extract_preferences_with_gemini(message: str) -> Optional[PreferenceQu
     Calls Google Gemini API for natural language extraction if GEMINI_API_KEY is present.
     Falls back to None if call fails or key is empty.
     """
-    if not GEMINI_API_KEY:
+    if not is_gemini_configured():
         return None
 
     prompt = f"""
@@ -197,23 +293,11 @@ Output ONLY valid JSON adhering strictly to this schema:
 User message: "{message}"
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "responseMimeType": "application/json"
-        }
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
-            resp = await client.post(url, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                text_content = data["candidates"][0]["content"]["parts"][0]["text"]
-                parsed = json.loads(text_content)
-                return PreferenceQuery(**parsed)
+        raw_json = await call_gemini_api(prompt, json_mode=True)
+        if raw_json:
+            parsed = json.loads(raw_json)
+            return PreferenceQuery(**parsed)
     except Exception as e:
         print(f"Gemini extraction fallback triggered: {e}")
 
@@ -351,8 +435,8 @@ def classify_chat_intent(message: str) -> str:
 
     # 7. ASK_AVAILABILITY
     if re.search(r"\bis\s+.*\s+(available|in\s+stock)\b", lower) or \
-       re.search(r"\bdo\s+you\s+have\s+.*\s+(available|today|now)\b", lower) or \
-       re.search(r"\bdo\s+you\s+have\b", lower):
+       re.search(r"\bdo\s+you\s+(?:have|serve|make|offer)\b", lower) or \
+       re.search(r"\bcan\s+i\s+get\b", lower):
         return ChatIntent.ASK_AVAILABILITY
 
     # 8. ASK_FOOD_DETAILS
@@ -373,7 +457,8 @@ def classify_chat_intent(message: str) -> str:
 
     # 10. SEARCH_FOOD
     if re.search(r"\b(?:search|find|show\s+all|list\s+all)\b", lower) or \
-       re.search(r"\b(?:what\s+(?:dishes|items|food)\s+(?:have|has|contain)|dishes\s+with|items\s+with|food\s+with)\b", lower) or \
+       re.search(r"\b(?:what\s+(?:dishes|items|food|sweets?|desserts?|drinks?|beverages?|snacks?)\s+(?:have|has|contain|do\s+you\s+have)|dishes\s+with|items\s+with|food\s+with)\b", lower) or \
+       re.search(r"\bwhat\s+(?:sweets?|desserts?|drinks?|beverages?|snacks?)\b", lower) or \
        re.search(r"\bshow\s+(?:all\s+)?(?:drinks|beverages|rolls|sandwiches|desserts|items|dishes|sweets)\b", lower):
         return ChatIntent.SEARCH_FOOD
 
@@ -418,9 +503,42 @@ def extract_comparison_targets(message: str) -> Tuple[Optional[str], Optional[st
     return None, None
 
 
-def parse_to_structured_intent(message: str) -> StructuredIntent:
+GEMINI_INTENT_SYSTEM_INSTRUCTION = """You are a precise Natural Language parser for a college canteen assistant named BiteBuddy.
+Convert the user message into structured canteen query constraints and preferences adhering strictly to this JSON schema:
+
+{
+  "intent": "ORDER_FOOD" | "COMPARE_FOOD" | "BUILD_COMBO" | "MODIFY_PREFERENCE" | "ASK_PRICE" | "ASK_AVAILABILITY" | "ASK_FOOD_DETAILS" | "ASK_NUTRITION" | "VIEW_NUTRITION" | "SEARCH_FOOD" | "GREETING" | "HELP" | "UNCLEAR" | "RECOMMEND_FOOD",
+  "target_item_name": string or null,
+  "target_dish_b_name": string or null,
+  "constraints": {
+    "max_price": float or null (ONLY if user specified budget or price limit in rupees, e.g. 100),
+    "max_preparation_time": int or null (ONLY if user specified a time limit in minutes, e.g. 10),
+    "diet": ["vegetarian"] or ["vegan"] or ["non-vegetarian"] or ["jain"] or [] (ONLY if explicitly specified),
+    "allergies": list of strings or [] (allergens user cannot eat, e.g. ["peanuts", "dairy", "gluten"]),
+    "exclusions": list of strings or [] (items user explicitly wants excluded, e.g. ["noodles", "onion"])
+  },
+  "preferences": {
+    "spicy": boolean or null,
+    "sweet": boolean or null,
+    "high_protein": boolean or null,
+    "low_calorie": boolean or null,
+    "cuisine": string or null,
+    "mood": string or null,
+    "craving": string or null
+  }
+}
+
+CRITICAL RULES:
+1. ONLY populate constraints that the user explicitly mentioned. If not mentioned, it MUST be null or empty list.
+2. NEVER guess or invent budget, prep time, or dietary restrictions.
+3. Budget cannot be negative. If negative budget is requested, set "max_price" to negative so validation detects it.
+4. Output ONLY valid JSON.
+"""
+
+
+def parse_to_structured_intent_rule_based(message: str) -> StructuredIntent:
     """
-    Phase 3: Converts natural language into strict structured intent and constraints.
+    Phase 3: Converts natural language into strict structured intent and constraints using rule-based parsing.
     Unknown values MUST be null/empty. Never infer missing information.
     """
     text = message.strip()
@@ -553,11 +671,127 @@ def parse_to_structured_intent(message: str) -> StructuredIntent:
             cuisine=cuisine,
             mood=mood,
             craving=craving
-        )
+        ),
+        llm_provider="rule_based"
     )
 
 
-def generate_grounded_explanation(
+async def parse_to_structured_intent_gemini(message: str) -> Optional[StructuredIntent]:
+    """
+    Calls Google Gemini API to parse natural language query into StructuredIntent.
+    Adheres strictly to structured JSON output and schema validation.
+    """
+    if not is_gemini_configured():
+        return None
+
+    prompt = f'User message: "{message}"'
+    raw_json = await call_gemini_api(
+        prompt=prompt,
+        json_mode=True,
+        system_instruction=GEMINI_INTENT_SYSTEM_INSTRUCTION,
+        timeout=5.0
+    )
+    if not raw_json:
+        return None
+
+    try:
+        parsed = json.loads(raw_json)
+        constraints_raw = parsed.get("constraints", {})
+        prefs_raw = parsed.get("preferences", {})
+
+        # Budget validation
+        max_price = constraints_raw.get("max_price")
+        if max_price is not None:
+            max_price = float(max_price)
+            if max_price < 0:
+                raise ValueError("Budget cannot be negative")
+
+        max_prep_time = constraints_raw.get("max_preparation_time")
+        if max_prep_time is not None:
+            max_prep_time = int(max_prep_time)
+            if max_prep_time <= 0:
+                max_prep_time = None
+
+        diet = constraints_raw.get("diet") or []
+        if isinstance(diet, str):
+            diet = [diet]
+
+        allergies = constraints_raw.get("allergies") or []
+        if isinstance(allergies, str):
+            allergies = [allergies]
+
+        exclusions = constraints_raw.get("exclusions") or []
+        if isinstance(exclusions, str):
+            exclusions = [exclusions]
+
+        # Soft preferences
+        spicy = prefs_raw.get("spicy")
+        if spicy is not None:
+            spicy = bool(spicy)
+
+        sweet = prefs_raw.get("sweet")
+        if sweet is not None:
+            sweet = bool(sweet)
+
+        high_protein = prefs_raw.get("high_protein")
+        if high_protein is not None:
+            high_protein = bool(high_protein)
+
+        low_calorie = prefs_raw.get("low_calorie")
+        if low_calorie is not None:
+            low_calorie = bool(low_calorie)
+
+        intent = parsed.get("intent") or ChatIntent.RECOMMEND_FOOD
+        model_name = get_gemini_model()
+
+        return StructuredIntent(
+            intent=intent,
+            target_item_name=parsed.get("target_item_name"),
+            target_dish_b_name=parsed.get("target_dish_b_name"),
+            constraints=StructuredConstraints(
+                max_price=max_price,
+                max_preparation_time=max_prep_time,
+                diet=diet,
+                allergies=allergies,
+                exclusions=exclusions
+            ),
+            preferences=StructuredPreferences(
+                spicy=spicy,
+                sweet=sweet,
+                high_protein=high_protein,
+                low_calorie=low_calorie,
+                cuisine=prefs_raw.get("cuisine"),
+                mood=prefs_raw.get("mood"),
+                craving=prefs_raw.get("craving")
+            ),
+            llm_provider=f"gemini ({model_name})"
+        )
+    except ValueError:
+        raise
+    except Exception as e:
+        print(f"Gemini intent parsing fallback triggered: {e}")
+        return None
+
+
+async def parse_to_structured_intent(message: str) -> StructuredIntent:
+    """
+    Parses natural language into StructuredIntent.
+    Uses Gemini API when configured; otherwise falls back to deterministic rule-based parser.
+    """
+    text = message.strip()
+    lower = text.lower()
+    if re.search(r"-\s*₹?\s*\d+|₹\s*-\s*\d+|budget\s*:\s*-\d+", lower):
+        raise ValueError("Budget cannot be negative")
+
+    if is_gemini_configured():
+        gemini_result = await parse_to_structured_intent_gemini(message)
+        if gemini_result is not None:
+            return gemini_result
+
+    return parse_to_structured_intent_rule_based(message)
+
+
+def generate_grounded_explanation_template(
     recommendations: List[RecommendationCard],
     query_intent: StructuredIntent,
     failing_constraints: Optional[Dict[str, Any]] = None,
@@ -565,7 +799,7 @@ def generate_grounded_explanation(
     combo: Optional[MealCombination] = None
 ) -> str:
     """
-    Phase 18 & Phase 26: Menu-grounded, concise explanation.
+    Phase 18 & Phase 26: Menu-grounded, concise template explanation.
     Never invents items, prices, calories, or availability.
     """
     if not recommendations:
@@ -619,6 +853,130 @@ def generate_grounded_explanation(
     lines.append("Want something cheaper, faster, or higher in protein?")
 
     return "\n".join(lines)
+
+
+async def generate_grounded_explanation_gemini(
+    recommendations: List[RecommendationCard],
+    query_intent: StructuredIntent,
+    failing_constraints: Optional[Dict[str, Any]] = None,
+    closest_match: Optional[RecommendationCard] = None,
+    combo: Optional[MealCombination] = None
+) -> Optional[str]:
+    """
+    Calls Google Gemini API to generate a warm, conversational canteen explanation.
+    Strictly grounded in the deterministic items, prices, and macros provided.
+    """
+    if not is_gemini_configured():
+        return None
+
+    if not recommendations:
+        if failing_constraints:
+            reasons_summary = []
+            if "budget" in failing_constraints:
+                b = failing_constraints["budget"]
+                reasons_summary.append(f"budget limit ₹{int(b['user_budget'])}, lowest available item is ₹{int(b['lowest_available'])}")
+            if "time" in failing_constraints:
+                t = failing_constraints["time"]
+                reasons_summary.append(f"time limit {t['user_time']}m, fastest available item is {t['fastest_available']}m")
+            if "diet" in failing_constraints:
+                d = failing_constraints["diet"]
+                reasons_summary.append(f"diet requirement: {d.get('message', 'no matching dishes')}")
+
+            closest_info = ""
+            if closest_match:
+                closest_info = f"Closest available dish: {closest_match.item.name} at ₹{int(closest_match.item.price)} ({', '.join(closest_match.reasons)})"
+
+            prompt = f"""The student asked for canteen food, but NO items matched all constraints:
+Failing constraints: {'; '.join(reasons_summary)}
+{closest_info}
+
+Explain politely that no canteen item meets all exact constraints.
+Mention the closest option if available, and suggest adjusting budget or preparation time.
+Keep it under 3-4 sentences in a friendly campus canteen assistant tone.
+"""
+            res = await call_gemini_api(
+                prompt,
+                system_instruction="You are BiteBuddy, a friendly college canteen assistant. Explain why zero dishes matched the student's constraints without hallucinating any non-existent dishes."
+            )
+            return res.strip() if res else None
+        return None
+
+    top_card = recommendations[0]
+    top_item = top_card.item
+
+    alts_text = ""
+    if len(recommendations) > 1:
+        alts_text = "\n".join([
+            f"- {alt.item.name}: ₹{int(alt.item.price)}, {alt.item.preparation_time}m prep, {int(alt.item.protein or 0)}g protein, {alt.match_percentage}% match"
+            for alt in recommendations[1:3]
+        ])
+
+    combo_text = ""
+    if combo:
+        combo_text = f"Pair with {combo.side_item.name} for a total of ₹{int(combo.total_price)} ({combo.max_prep_time}m prep)."
+
+    prompt = f"""Student Query Intent: {query_intent.intent}
+Top Recommendation Selected:
+- Name: {top_item.name}
+- Price: ₹{int(top_item.price)}
+- Prep Time: {top_item.preparation_time} minutes
+- Calories: {int(top_item.calories or 0)} kcal
+- Protein: {int(top_item.protein or 0)}g
+- Vegetarian: {"Pure Veg" if top_item.vegetarian else "Non-Veg"}
+- Match Percentage: {top_card.match_percentage}%
+- Why it matches: {', '.join(top_card.reasons[:3])}
+
+Other Available Options:
+{alts_text or "None"}
+
+Combo Suggestion:
+{combo_text or "None"}
+
+Write a warm, appetizing, and student-friendly recommendation.
+GROUNDING RULES:
+1. ONLY refer to the dishes above.
+2. Use the exact prices and prep times given above. NEVER invent different numbers.
+3. Keep it concise (2-4 sentences for the top pick, then briefly mention other options).
+"""
+    system_inst = "You are BiteBuddy, a smart college canteen assistant. Write a grounded, friendly recommendation explaining why these specific canteen dishes were chosen. Never hallucinate prices, macros, or unlisted foods."
+    res = await call_gemini_api(prompt, system_instruction=system_inst)
+    if res and len(res.strip()) > 20:
+        if top_item.name.lower() in res.lower():
+            return res.strip()
+
+    return None
+
+
+async def generate_grounded_explanation(
+    recommendations: List[RecommendationCard],
+    query_intent: StructuredIntent,
+    failing_constraints: Optional[Dict[str, Any]] = None,
+    closest_match: Optional[RecommendationCard] = None,
+    combo: Optional[MealCombination] = None
+) -> str:
+    """
+    Menu-grounded, concise explanation.
+    Uses Gemini API when configured; otherwise falls back to deterministic template generator.
+    Never invents items, prices, calories, or availability.
+    """
+    if is_gemini_configured():
+        gemini_text = await generate_grounded_explanation_gemini(
+            recommendations=recommendations,
+            query_intent=query_intent,
+            failing_constraints=failing_constraints,
+            closest_match=closest_match,
+            combo=combo
+        )
+        if gemini_text:
+            return gemini_text
+
+    return generate_grounded_explanation_template(
+        recommendations=recommendations,
+        query_intent=query_intent,
+        failing_constraints=failing_constraints,
+        closest_match=closest_match,
+        combo=combo
+    )
 
 
 def find_food_by_name(text: str, foods: List[Any]) -> Optional[Any]:
@@ -818,11 +1176,46 @@ def generate_suggested_followups(
     return chips[:5]
 
 
+def _find_best_dish_match(clean_lower: str, foods: List[Any]) -> Optional[Any]:
+    """Finds the single most accurate matching canteen dish for a query."""
+    best_food = None
+    best_score = 0
+    clean_words = set(clean_lower.split())
+
+    for f in foods:
+        f_name_lower = f.name.lower()
+        score = 0
+        if f_name_lower in clean_lower:
+            score = 100
+        elif _match_dish_nickname(clean_lower, f_name_lower):
+            score = 90
+        else:
+            clean_f_name = re.sub(r"[^\w\s]", " ", f_name_lower).strip()
+            dish_words = [w for w in clean_f_name.split() if w not in ["pcs", "chilled", "cutting", "dry", "bowl"]]
+            if len(dish_words) >= 2:
+                phrase = " ".join(dish_words[-2:])
+                if phrase in clean_lower:
+                    score = 80
+                else:
+                    phrase_first = " ".join(dish_words[:2])
+                    if phrase_first in clean_lower:
+                        score = 75
+            elif len(dish_words) == 1 and len(dish_words[0]) >= 4 and dish_words[0] in clean_words:
+                score = 50
+
+        if score > best_score:
+            best_score = score
+            best_food = f
+
+    return best_food if best_score >= 50 else None
+
+
 def handle_menu_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any], List[str]]:
     """
     Answers direct questions about menu items, ingredients, availability, cheapest item.
     """
     lower = message.lower()
+    clean_lower = re.sub(r"[^\w\s]", " ", lower).strip()
     matched: List[Any] = []
 
     # 1. Cheapest item inquiry
@@ -839,36 +1232,37 @@ def handle_menu_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any],
             )
             return reply, matched, ["Add to order", "Dishes under ₹50", "High protein under ₹100"]
 
-    # 2. Availability check: "is cold coffee available?", "do you have samosa?"
-    for f in foods:
-        if f.name.lower() in lower or (len(f.name) > 4 and f.name.lower()[:5] in lower):
-            if not f.available:
-                # FIRST state that item is not available, THEN recommend available alternatives!
-                alts = [
-                    alt for alt in foods 
-                    if alt.available and alt.item_id != f.item_id and (
-                        alt.category == f.category or (alt.vegetarian == f.vegetarian and alt.spicy == f.spicy)
-                    )
-                ]
-                if not alts:
-                    alts = [alt for alt in foods if alt.available and alt.vegetarian == f.vegetarian]
-                if not alts:
-                    alts = [alt for alt in foods if alt.available]
-                selected_alts = alts[:3]
-                reply = (
-                    f"Sorry, **{f.name}** is currently **unavailable (sold out)** in the canteen.\n\n"
-                    f"Here are some delicious available alternatives we recommend instead:"
+    # 2. Availability check: "is cold coffee available?", "do you have samosa?", "do you serve french fries?"
+    target_dish = _find_best_dish_match(clean_lower, foods)
+    if target_dish:
+        f = target_dish
+        if not f.available:
+            # FIRST state that item is not available, THEN recommend available alternatives!
+            alts = [
+                alt for alt in foods 
+                if alt.available and alt.item_id != f.item_id and (
+                    alt.category == f.category or (alt.vegetarian == f.vegetarian and alt.spicy == f.spicy)
                 )
-                return reply, selected_alts, [f"Order {a.name}" for a in selected_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
-            else:
-                reply = (
-                    f"Yes, **{f.name}** is in stock and available right now! 🎉\n\n"
-                    f"• **Price**: ₹{int(f.price)}\n"
-                    f"• **Prep time**: {f.preparation_time} mins\n"
-                    f"• **Nutrition**: {int(f.calories or 0)} kcal | {int(f.protein or 0)}g Protein | {int(f.carbohydrates or 0)}g Carbs"
-                )
-                matched = [f]
-                return reply, matched, [f"Add {f.name} to order", "Show similar items", "Dishes under ₹100"]
+            ]
+            if not alts:
+                alts = [alt for alt in foods if alt.available and alt.vegetarian == f.vegetarian]
+            if not alts:
+                alts = [alt for alt in foods if alt.available]
+            selected_alts = alts[:3]
+            reply = (
+                f"Sorry, **{f.name}** is currently **unavailable (sold out)** in the canteen.\n\n"
+                f"Here are some delicious available alternatives we recommend instead:"
+            )
+            return reply, selected_alts, [f"Order {a.name}" for a in selected_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
+        else:
+            reply = (
+                f"Yes, **{f.name}** is in stock and available right now! 🎉\n\n"
+                f"• **Price**: ₹{int(f.price)}\n"
+                f"• **Prep time**: {f.preparation_time} mins\n"
+                f"• **Nutrition**: {int(f.calories or 0)} kcal | {int(f.protein or 0)}g Protein | {int(f.carbohydrates or 0)}g Carbs"
+            )
+            matched = [f]
+            return reply, matched, [f"Add {f.name} to order", "Show similar items", "Dishes under ₹100"]
 
     # 3. Ingredient search: "what items have paneer", "dishes with cheese"
     ingr_match = re.search(r"\b(paneer|cheese|egg|chicken|maggi|rice|potato|aloo|mushroom|chocolate)\b", lower)
@@ -885,8 +1279,8 @@ def handle_menu_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any],
         reply = "Here are our refreshing drinks and beverages:"
         return reply, matched[:4], ["Pair with a snack", "Under ₹40 drinks", "Cold beverages only"]
 
-    if re.search(r"\b(dessert|sweet|gulab jamun)\b", lower):
-        matched = [f for f in foods if f.category.lower() in ["dessert", "desserts", "sweet"] or "sweet" in (f.tags or "").lower()]
+    if re.search(r"\b(desserts?|sweets?|sweet|gulab\s+jamun|brownie|rasgulla|custard)\b", lower):
+        matched = [f for f in foods if f.category.lower() in ["dessert", "desserts", "sweet"] or "sweet" in (f.tags or "").lower() or (f.sweet is True)]
         reply = "Here are the sweet treats and desserts currently on the menu:"
         return reply, matched[:4], ["Add dessert to order", "Under ₹50 sweets", "Back to main menu"]
 
@@ -1030,17 +1424,9 @@ OFF_MENU_FOOD_MAP = {
         "name": "Dumplings",
         "alternatives": ["Idli Sambar (2 pcs)", "Chilli Paneer Dry"]
     },
-    "french fries": {
-        "name": "French Fries",
-        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)", "Mumbai Vada Pav"]
-    },
-    "fries": {
-        "name": "Fries",
-        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)", "Mumbai Vada Pav"]
-    },
     "potato wedges": {
         "name": "Potato Wedges",
-        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)"]
+        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)", "Peri Peri French Fries"]
     },
     "shawarma": {
         "name": "Shawarma",
@@ -1093,10 +1479,6 @@ OFF_MENU_FOOD_MAP = {
     "paratha": {
         "name": "Paratha",
         "alternatives": ["Paneer Kathi Roll", "Aloo Corn Roll", "Chole Bhature"]
-    },
-    "pav bhaji": {
-        "name": "Pav Bhaji",
-        "alternatives": ["Mumbai Vada Pav", "Chole Bhature", "Bun Maska"]
     },
     "pani puri": {
         "name": "Pani Puri",
@@ -1376,6 +1758,33 @@ def _match_dish_nickname(lower: str, f_name_lower: str) -> bool:
         "fruit custard": "fresh fruit custard",
         "custard": "fresh fruit custard",
         "bun maska": "bun maska",
+        "pav bhaji": "mumbai pav bhaji",
+        "chole kulche": "amritsari chole kulche",
+        "kulche": "amritsari chole kulche",
+        "kulcha": "amritsari chole kulche",
+        "soya chaap": "soya chaap tikka roll",
+        "chaap roll": "soya chaap tikka roll",
+        "chaap": "soya chaap tikka roll",
+        "paneer rice bowl": "paneer butter masala rice bowl",
+        "dal makhani rice bowl": "dal makhani rice bowl",
+        "chicken rice bowl": "chicken curry rice bowl",
+        "chicken curry": "chicken curry rice bowl",
+        "mysore dosa": "mysore masala dosa",
+        "mysore masala dosa": "mysore masala dosa",
+        "medu vada": "medu vada sambar (2 pcs)",
+        "vada sambar": "medu vada sambar (2 pcs)",
+        "french fries": "peri peri french fries",
+        "fries": "peri peri french fries",
+        "peri peri fries": "peri peri french fries",
+        "masala toast": "bombay masala toast sandwich",
+        "toast sandwich": "bombay masala toast sandwich",
+        "garlic noodles": "chilli garlic noodles",
+        "peri peri maggi": "peri peri maggi",
+        "oreo shake": "oreo chocolate thick shake",
+        "thick shake": "oreo chocolate thick shake",
+        "badam milk": "kesar badam milk (chilled)",
+        "iced tea": "lemon iced tea",
+        "rasgulla": "spongy rasgulla (2 pcs)",
     }
     for nick, target in NICKNAME_MAP.items():
         if target == f_name_lower and re.search(rf"\b{re.escape(nick)}\b", lower):
@@ -1397,8 +1806,9 @@ def check_unavailable_or_off_menu(message: str, foods: List[Any]) -> Optional[Tu
     lower = message.strip().lower()
 
     # -------------------------------------------------------------
-    # A. Check ON-MENU items that are currently UNAVAILABLE / SOLD OUT
+    # A. Check ON-MENU items (detect if available or sold out)
     # -------------------------------------------------------------
+    on_menu_available_matched = False
     for f in foods:
         f_name_lower = f.name.lower()
         matched_name = False
@@ -1430,6 +1840,13 @@ def check_unavailable_or_off_menu(message: str, foods: List[Any]) -> Optional[Tu
                 selected_alts = alts[:3]
                 followups = [f"Order {a.name}" for a in selected_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
                 return reply, selected_alts, followups, "unavailable_item"
+            else:
+                on_menu_available_matched = True
+
+    # If the user specifically asked for an item that is on-menu AND available,
+    # let standard recommendation/Q&A flow handle it rather than off-menu checks.
+    if on_menu_available_matched:
+        return None
 
     # -------------------------------------------------------------
     # B. Check OFF-MENU foods (e.g. pizza, burger, momos, sushi, tacos)

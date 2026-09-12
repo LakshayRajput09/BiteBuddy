@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import app
-from database import init_db, SessionLocal, Food
+from database import init_db, SessionLocal, Food, Order, OrderItem
 from seed_data import seed_database
 
 
@@ -14,8 +14,18 @@ from seed_data import seed_database
 def client():
     init_db()
     seed_database()
+    db = SessionLocal()
+    db.query(OrderItem).delete()
+    db.query(Order).delete()
+    db.commit()
+    db.close()
     with TestClient(app) as c:
         yield c
+    db = SessionLocal()
+    db.query(OrderItem).delete()
+    db.query(Order).delete()
+    db.commit()
+    db.close()
 
 
 def test_health(client):
@@ -202,6 +212,43 @@ def test_orders_dynamic_macros_and_frozen_integrity(client):
 
     # Restore Item 1
     client.put("/owner/menu/1", json={"price": 75.0, "protein": 18.0, "calories": 340.0})
+
+
+def test_todays_nutrition_starts_zero_and_only_increases_on_order(client):
+    # Ensure zero orders
+    db = SessionLocal()
+    db.query(OrderItem).delete()
+    db.query(Order).delete()
+    db.commit()
+    db.close()
+
+    # 1. Before ordering, today's nutrition MUST be strictly 0
+    res = client.get("/student/nutrition?user_id=student_lakshay")
+    assert res.status_code == 200
+    nutrition = res.json()
+    assert nutrition["consumed_calories"] == 0.0
+    assert nutrition["consumed_protein"] == 0.0
+    assert nutrition["consumed_carbs"] == 0.0
+    assert nutrition["consumed_fat"] == 0.0
+    assert len(nutrition["meals_today"]) == 0
+
+    # 2. Place an order for 1x Paneer Kathi Roll (item_id 1: 340 cal, 18 prot, 32 carb, 16 fat)
+    order_res = client.post("/orders", json={
+        "student_id": "student_lakshay",
+        "items": [{"food_id": 1, "quantity": 1}]
+    })
+    assert order_res.status_code == 200
+
+    # 3. Today's nutrition MUST now reflect ONLY the placed order
+    res_after = client.get("/student/nutrition?user_id=student_lakshay")
+    assert res_after.status_code == 200
+    nutrition_after = res_after.json()
+    assert nutrition_after["consumed_calories"] == 340.0
+    assert nutrition_after["consumed_protein"] == 18.0
+    assert nutrition_after["consumed_carbs"] == 32.0
+    assert nutrition_after["consumed_fat"] == 16.0
+    assert len(nutrition_after["meals_today"]) == 1
+    assert nutrition_after["meals_today"][0]["name"] == "Paneer Kathi Roll"
 
 
 def test_owner_menu_crud_and_stats(client):
@@ -664,6 +711,60 @@ def test_phase_21_scenarios(client):
     d15 = res15.json()
     assert d15["response_type"] == "NO_MATCH"
     assert d15["recommendations"] == []
+
+
+def test_expanded_menu_items(client):
+    """Verify expanded 50-dish canteen menu and specific inquiries on new dishes."""
+    # 1. Check /menu returns all 50 dishes
+    res = client.get("/menu")
+    assert res.status_code == 200
+    menu = res.json()
+    assert len(menu) == 50
+
+    # 2. Check newly added items are present
+    names = [item["name"] for item in menu]
+    new_dishes = [
+        "Amritsari Chole Kulche",
+        "Mumbai Pav Bhaji",
+        "Soya Chaap Tikka Roll",
+        "Paneer Butter Masala Rice Bowl",
+        "Dal Makhani Rice Bowl",
+        "Chicken Curry Rice Bowl",
+        "Mysore Masala Dosa",
+        "Medu Vada Sambar (2 pcs)",
+        "Peri Peri French Fries",
+        "Bombay Masala Toast Sandwich",
+        "Chilli Garlic Noodles",
+        "Peri Peri Maggi",
+        "Oreo Chocolate Thick Shake",
+        "Kesar Badam Milk (Chilled)",
+        "Lemon Iced Tea",
+        "Spongy Rasgulla (2 pcs)"
+    ]
+    for dish in new_dishes:
+        assert dish in names, f"{dish} missing from menu"
+
+    # 3. Direct inquiry on newly added Pav Bhaji
+    res_pb = client.post("/chat", json={"message": "Do you have pav bhaji?"})
+    assert res_pb.status_code == 200
+    d_pb = res_pb.json()
+    assert "Mumbai Pav Bhaji" in d_pb["reply_text"]
+    assert "₹70" in d_pb["reply_text"]
+
+    # 4. Direct inquiry on Chole Kulche
+    res_ck = client.post("/chat", json={"message": "Do you have chole kulche?"})
+    assert res_ck.status_code == 200
+    d_ck = res_ck.json()
+    assert "Amritsari Chole Kulche" in d_ck["reply_text"]
+    assert "₹65" in d_ck["reply_text"]
+
+    # 5. Direct inquiry on French Fries
+    res_ff = client.post("/chat", json={"message": "Do you serve french fries?"})
+    assert res_ff.status_code == 200
+    d_ff = res_ff.json()
+    assert "Peri Peri French Fries" in d_ff["reply_text"]
+    assert "₹55" in d_ff["reply_text"]
+
 
 
 

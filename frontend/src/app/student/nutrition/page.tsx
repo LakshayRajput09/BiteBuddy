@@ -50,10 +50,10 @@ export default function StudentNutritionPage() {
     enabled: true
   };
 
-  const consumedCal = nutrition?.consumed_calories ?? 850;
-  const consumedProt = nutrition?.consumed_protein ?? 48;
-  const consumedCarb = nutrition?.consumed_carbs ?? 105;
-  const consumedFat = nutrition?.consumed_fat ?? 28;
+  const consumedCal = nutrition?.consumed_calories ?? 0;
+  const consumedProt = nutrition?.consumed_protein ?? 0;
+  const consumedCarb = nutrition?.consumed_carbs ?? 0;
+  const consumedFat = nutrition?.consumed_fat ?? 0;
 
   const calPct = Math.min(100, Math.round((consumedCal / goals.calorie_goal) * 100));
   const protPct = Math.min(100, Math.round((consumedProt / goals.protein_goal) * 100));

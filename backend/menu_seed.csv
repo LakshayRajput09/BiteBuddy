@@ -33,4 +33,20 @@ item_id,name,category,price,ingredients,vegetarian,vegan,jain,spicy,sweet,prepar
 32,Warm Gulab Jamun (2 pcs),Sweets,35,"milk solids,sugar syrup,rose water,cardamom",true,false,true,false,true,3,true,Indian,2 pcs,"sweet-tooth,dessert,warm",🍮
 33,Chocolate Walnut Brownie,Sweets,60,"cocoa,walnuts,refined flour,dark chocolate",true,false,false,false,true,3,true,Bakery,1 slice,"chocolate-craving,sweet,comfort",🍰
 34,Fresh Fruit Custard,Sweets,40,"vanilla custard,apple,banana,pomegranate,grapes",true,false,true,false,true,4,true,Continental,1 bowl,"fruity,light-sweet,chilled",🍨
+35,Amritsari Chole Kulche,Rice,65,"chickpeas,refined flour kulcha,onion,tomato,amchur,spices",true,true,false,true,false,8,true,North Indian,2 kulche + chole,"hearty,spicy,filling,punjabi",🫓
+36,Mumbai Pav Bhaji,Snacks,70,"potatoes,tomatoes,peas,butter,pav,capsicum,pav bhaji masala",true,false,false,true,false,7,true,Maharashtrian,2 pav + bhaji,"buttery,spicy,street-favorite,hot",🍲
+37,Soya Chaap Tikka Roll,Roll,75,"soya chaap,onion,capsicum,wheat roti,mint chutney,tandoori spices",true,false,false,true,false,8,true,North Indian,1 roll,"protein-rich,vegetarian,spicy,wrap",🌯
+38,Paneer Butter Masala Rice Bowl,Rice,95,"paneer,basmati rice,butter,cream,tomato gravy,cashew,spices",true,false,false,false,true,9,true,North Indian,1 bowl,"rich,makhani,creamy,comfort",🍛
+39,Dal Makhani Rice Bowl,Rice,80,"black urad dal,kidney beans,basmati rice,butter,cream,spices",true,false,false,false,false,7,true,North Indian,1 bowl,"slow-cooked,creamy,wholesome,classic",🍛
+40,Chicken Curry Rice Bowl,Rice,110,"tender chicken,basmati rice,onion gravy,ginger,garlic,spices",false,false,false,true,false,10,true,Indian,1 bowl,"non-veg,protein,spicy,satisfying",🍗
+41,Mysore Masala Dosa,Snacks,75,"rice-lentil batter,spicy garlic red chutney,potato masala,sambar,coconut chutney",true,true,false,true,false,8,true,South Indian,1 dosa,"crispy,spicy,garlic,traditional",🥞
+42,Medu Vada Sambar (2 pcs),Snacks,45,"urad dal,curry leaves,crushed black pepper,sambar,coconut chutney",true,true,false,false,false,6,true,South Indian,2 vadas,"crispy,fluffy,savory,classic",🍩
+43,Peri Peri French Fries,Snacks,55,"potatoes,peri peri spice mix,salt,oil",true,true,false,true,false,5,true,Continental,1 bowl,"crunchy,spicy,finger-food,fast",🍟
+44,Bombay Masala Toast Sandwich,Snacks,55,"bread,potato masala,beetroot,onion,cheese,mint chutney,butter",true,false,false,true,false,6,true,Street Food,2 halves,"toasted,spicy,vegetable-packed,cheesy",🥪
+45,Chilli Garlic Noodles,Noodles,75,"wheat noodles,crushed garlic,red chili flakes,capsicum,cabbage,soy sauce",true,true,false,true,false,8,true,Indo-Chinese,1 bowl,"fiery,garlic,wok-tossed,spicy",🥢
+46,Peri Peri Maggi,Noodles,50,"maggi noodles,peri peri herbs,sweet corn,butter,tastemaker",true,false,false,true,false,7,true,Indian Fusion,1 bowl,"hot,cheesy-kick,canteen-style,spicy",🍜
+47,Oreo Chocolate Thick Shake,Beverages,65,"whole milk,oreo cookies,vanilla ice cream,chocolate syrup",true,false,false,false,true,4,true,Continental,350 ml,"thick,sweet,rich,dessert-shake",🥤
+48,Kesar Badam Milk (Chilled),Beverages,45,"milk,almonds,saffron (kesar),cardamom,pistachios,sugar",true,false,false,false,true,3,true,Indian,250 ml,"royal,cooling,nuts,healthy",🥛
+49,Lemon Iced Tea,Beverages,35,"brewed tea,fresh lemon juice,mint sprigs,sugar,crushed ice",true,true,false,false,true,2,true,Continental,300 ml,"refreshing,citrus,iced,summer",🍹
+50,Spongy Rasgulla (2 pcs),Sweets,35,"chhena cottage cheese,sugar syrup,rose water,cardamom",true,false,true,false,true,2,true,Indian,2 pcs,"sweet,juicy,traditional,light",⚪
 

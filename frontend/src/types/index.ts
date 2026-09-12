@@ -92,6 +92,7 @@ export interface DebugInfoData {
   removed_items: RemovedItemData[];
   final_scores: ScoreEntryData[];
   top_3: string[];
+  llm_provider?: string;
 }
 
 export interface ChatResponseData {

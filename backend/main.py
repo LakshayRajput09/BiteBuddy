@@ -28,7 +28,15 @@ from schemas import (
     StudentNutritionGoalUpdate, StudentDailyNutrition, NutritionConsumedMeal,
     OrderCreate, OrderOut, OrderItemOut, FoodCreate, FoodUpdate, OwnerStats,
     StructuredConstraints, StructuredPreferences, StructuredIntent,
-    RemovedItem, ScoreEntry, DebugInfo
+    RemovedItem, ScoreEntry, DebugInfo,
+    CanteenChatRequest, CanteenChatResponse
+)
+from canteen_db import init_canteen_db, get_all_menu_items
+from canteen_engine import (
+    handle_canteen_chat,
+    handle_canteen_qa,
+    handle_canteen_recommendation,
+    classify_intent
 )
 from engine import (
     generate_recommendations,
@@ -61,6 +69,7 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    init_canteen_db()
     from database import SessionLocal
     db = SessionLocal()
     try:
@@ -104,6 +113,87 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "bitebuddy-api", "version": "2.0.0"}
+
+
+@app.get("/api/llm/status")
+def get_llm_status():
+    from llm_service import is_gemini_configured, get_gemini_model
+    configured = is_gemini_configured()
+    model = get_gemini_model()
+    return {
+        "configured": configured,
+        "gemini_configured": configured,
+        "model": model if configured else None,
+        "provider": f"gemini ({model})" if configured else "rule_based (offline fallback)"
+    }
+
+
+# ==================================================
+# Canteen Bot Endpoints (Factual Q&A + Vector Recommendations)
+# ==================================================
+
+@app.post("/api/canteen/chat", response_model=CanteenChatResponse)
+async def canteen_chat_endpoint(req: CanteenChatRequest, db: Session = Depends(get_db)):
+    result = await handle_canteen_chat(req.message, db=db)
+    return CanteenChatResponse(
+        intent=result.get("intent", "question"),
+        reply_text=result.get("reply_text", ""),
+        matched_items=result.get("matched_items", []),
+        count=result.get("count", len(result.get("matched_items", []))),
+        constraints=result.get("constraints"),
+        classified_intent=result.get("classified_intent")
+    )
+
+
+@app.post("/api/canteen/intent")
+async def canteen_intent_endpoint(req: CanteenChatRequest):
+    intent = await classify_intent(req.message)
+    return {"intent": intent}
+
+
+@app.post("/api/canteen/qa", response_model=CanteenChatResponse)
+async def canteen_qa_endpoint(req: CanteenChatRequest, db: Session = Depends(get_db)):
+    result = await handle_canteen_qa(req.message, db=db)
+    return CanteenChatResponse(
+        intent="question",
+        reply_text=result.get("reply_text", ""),
+        matched_items=result.get("matched_items", []),
+        count=result.get("count", len(result.get("matched_items", []))),
+        constraints=result.get("constraints"),
+        classified_intent="question"
+    )
+
+
+@app.post("/api/canteen/recommend", response_model=CanteenChatResponse)
+async def canteen_recommend_endpoint(req: CanteenChatRequest, db: Session = Depends(get_db)):
+    result = await handle_canteen_recommendation(req.message, db=db)
+    return CanteenChatResponse(
+        intent="recommendation_request",
+        reply_text=result.get("reply_text", ""),
+        matched_items=result.get("matched_items", []),
+        count=result.get("count", len(result.get("matched_items", []))),
+        constraints=result.get("constraints"),
+        classified_intent="recommendation_request"
+    )
+
+
+@app.get("/api/canteen/menu")
+def canteen_menu_endpoint(
+    max_price: Optional[float] = None,
+    diet: Optional[str] = None,
+    spice: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    items = get_all_menu_items(db)
+    if max_price is not None:
+        items = [i for i in items if i["price"] <= max_price]
+    if diet:
+        d = diet.lower()
+        items = [i for i in items if d in [tag.lower() for tag in i.get("dietary_tags", [])]]
+    if spice:
+        s = spice.lower()
+        items = [i for i in items if i.get("spice_level", "").lower() == s]
+    return items
 
 
 @app.get("/menu", response_model=List[FoodOut])
@@ -235,7 +325,7 @@ async def chat_endpoint(
 
     # 2. Extract structured intent and validate constraints (Phase 3)
     try:
-        structured_intent = parse_to_structured_intent(raw_message)
+        structured_intent = await parse_to_structured_intent(raw_message)
         extracted = PreferenceQuery(
             budget=structured_intent.constraints.max_price,
             time_limit=structured_intent.constraints.max_preparation_time,
@@ -589,7 +679,7 @@ async def chat_endpoint(
     # 16. If no items match hard constraints (Phase 13 & 14)
     if not surviving_foods:
         diagnosis = diagnose_no_match(all_foods, session_constraints, session_prefs)
-        explanation = generate_grounded_explanation(
+        explanation = await generate_grounded_explanation(
             [],
             structured_intent,
             failing_constraints=diagnosis["failures"],
@@ -604,7 +694,8 @@ async def chat_endpoint(
             filtered_items=[],
             removed_items=[RemovedItem(**r) for r in removed_log],
             final_scores=[],
-            top_3=[]
+            top_3=[],
+            llm_provider=structured_intent.llm_provider
         )
 
         return ChatResponse(
@@ -638,7 +729,7 @@ async def chat_endpoint(
     combo = find_meal_combination(top_food_obj, all_foods, session.preferences)
 
     # 18. Build grounded explanation (Phase 18 & 26)
-    explanation_text = generate_grounded_explanation(
+    explanation_text = await generate_grounded_explanation(
         top_cards,
         structured_intent,
         combo=combo
@@ -668,7 +759,8 @@ async def chat_endpoint(
                 reasons=c.reasons
             ) for c in ranked_cards
         ],
-        top_3=[c.item.name for c in top_cards]
+        top_3=[c.item.name for c in top_cards],
+        llm_provider=structured_intent.llm_provider
     )
 
     return ChatResponse(

@@ -45,14 +45,14 @@ export default function MenuPage() {
             price: Math.round(d.price),
             prepTime: d.preparation_time,
             available: d.available,
-            image: getFoodImage(d.name),
-            description: `${d.cuisine || "Canteen"} style dish made with ${d.ingredients}.`,
-            ingredients: d.ingredients.split(",").map((s: string) => s.trim()),
+            image: d.image_url || getFoodImage(d.name),
+            description: d.description || `${d.cuisine || "Canteen"} style dish made with ${d.ingredients}.`,
+            ingredients: typeof d.ingredients === "string" ? d.ingredients.split(",").map((s: string) => s.trim()) : (d.ingredients || []),
             nutrition: {
-              calories: `${Math.round(200 + d.price * 1.8)} kcal`,
-              protein: `${Math.round(4 + d.price * 0.1)}g`,
-              carbs: `${Math.round(25 + d.price * 0.2)}g`,
-              fat: `${Math.round(3 + d.price * 0.08)}g`
+              calories: d.calories ? `${Math.round(d.calories)} kcal` : `${Math.round(200 + d.price * 1.8)} kcal`,
+              protein: d.protein ? `${Math.round(d.protein)}g` : `${Math.round(4 + d.price * 0.1)}g`,
+              carbs: d.carbohydrates ? `${Math.round(d.carbohydrates)}g` : `${Math.round(25 + d.price * 0.2)}g`,
+              fat: d.fat ? `${Math.round(d.fat)}g` : `${Math.round(3 + d.price * 0.08)}g`
             },
             tags: [d.vegetarian ? "Vegetarian" : "Non-Veg", ...(d.spicy ? ["Spicy"] : [])],
             isVegetarian: d.vegetarian,
@@ -118,16 +118,16 @@ export default function MenuPage() {
             placeholder="Search for items (e.g. maggi, roll, coffee)..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm"
+            className="w-full pl-11 pr-4 py-3 liquid-glass-input rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400"
           />
         </div>
 
         <button
           onClick={() => setShowVegOnly(!showVegOnly)}
-          className={`flex items-center gap-2 px-5 py-3 rounded-2xl border text-xs sm:text-sm font-bold transition-all shadow-sm ${
+          className={`flex items-center gap-2 px-5 py-3 rounded-2xl border text-xs sm:text-sm font-bold transition-all ${
             showVegOnly
-              ? "bg-emerald-50 border-emerald-300 text-emerald-800"
-              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              ? "liquid-glass-pill-active font-extrabold"
+              : "liquid-glass-pill text-slate-700 hover:text-slate-900"
           }`}
         >
           <SlidersHorizontal className="w-4 h-4 text-emerald-700" />
@@ -145,8 +145,8 @@ export default function MenuPage() {
               onClick={() => setSelectedCategory(cat)}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 active
-                  ? "bg-emerald-700 text-white shadow-sm"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                  ? "liquid-glass-button text-white shadow-xs scale-[1.02]"
+                  : "liquid-glass-pill text-slate-600 hover:text-slate-900"
               }`}
             >
               {cat}
@@ -161,7 +161,7 @@ export default function MenuPage() {
           Loading canteen menu...
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 text-slate-500 text-sm space-y-2">
+        <div className="text-center py-20 liquid-glass-card text-slate-500 text-sm space-y-2 max-w-lg mx-auto">
           <p className="font-bold text-slate-800">No food items found matching your criteria</p>
           <p className="text-xs text-slate-400">Try clearing your search or switching categories.</p>
         </div>
