@@ -333,4 +333,42 @@ def test_chat_greetings_and_inquiries(client):
     assert any("paneer" in item["name"].lower() for item in data4["matched_items"])
 
 
+def test_chat_off_menu_item_unavailable(client):
+    # 1. Direct query for pizza (mapped in OFF_MENU_FOOD_MAP)
+    res_pizza = client.post("/chat", json={"message": "Do you have pizza?"})
+    assert res_pizza.status_code == 200
+    data_pizza = res_pizza.json()
+    assert data_pizza["intent"] == "off_menu"
+    assert "not available on our canteen menu" in data_pizza["reply_text"].lower()
+    assert "pizza" in data_pizza["reply_text"].lower()
+    assert len(data_pizza["matched_items"]) > 0
+    # Available alternatives should be returned (e.g. Cheese Grilled Sandwich)
+    assert any(item["available"] for item in data_pizza["matched_items"])
+
+    # 2. Query for burger under budget
+    res_burger = client.post("/chat", json={"message": "I want a burger under ₹100"})
+    assert res_burger.status_code == 200
+    data_burger = res_burger.json()
+    assert data_burger["intent"] == "off_menu"
+    assert "not available on our canteen menu" in data_burger["reply_text"].lower()
+    assert "burger" in data_burger["reply_text"].lower()
+    assert len(data_burger["matched_items"]) > 0
+
+    # 3. Query for sushi (uncommon / international food not in canteen)
+    res_sushi = client.post("/chat", json={"message": "Can I get sushi?"})
+    assert res_sushi.status_code == 200
+    data_sushi = res_sushi.json()
+    assert data_sushi["intent"] == "off_menu"
+    assert "not available on our canteen menu" in data_sushi["reply_text"].lower()
+    assert "sushi" in data_sushi["reply_text"].lower()
+
+    # 4. Query for tacos (Mexican food not in canteen)
+    res_taco = client.post("/chat", json={"message": "Do you serve tacos?"})
+    assert res_taco.status_code == 200
+    data_taco = res_taco.json()
+    assert data_taco["intent"] == "off_menu"
+    assert "not available on our canteen menu" in data_taco["reply_text"].lower()
+
+
+
 

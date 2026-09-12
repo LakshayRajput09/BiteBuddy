@@ -527,3 +527,295 @@ def handle_nutrition_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[
         ["Under ₹100 high protein", "Vegetarian protein", "Add top pick to order"]
     )
 
+
+# Common off-menu foods students ask for with curated canteen alternatives
+OFF_MENU_FOOD_MAP = {
+    "pizza": {
+        "name": "Pizza",
+        "alternatives": ["Cheese Grilled Sandwich", "Classic Masala Maggi", "Chilli Paneer Dry"]
+    },
+    "pizzas": {
+        "name": "Pizza",
+        "alternatives": ["Cheese Grilled Sandwich", "Classic Masala Maggi", "Chilli Paneer Dry"]
+    },
+    "burger": {
+        "name": "Burger",
+        "alternatives": ["Mumbai Vada Pav", "Cheese Grilled Sandwich", "Paneer Kathi Roll"]
+    },
+    "burgers": {
+        "name": "Burgers",
+        "alternatives": ["Mumbai Vada Pav", "Cheese Grilled Sandwich", "Paneer Kathi Roll"]
+    },
+    "cheeseburger": {
+        "name": "Cheeseburger",
+        "alternatives": ["Mumbai Vada Pav", "Cheese Grilled Sandwich"]
+    },
+    "pasta": {
+        "name": "Pasta",
+        "alternatives": ["Veg Hakka Noodles", "Classic Masala Maggi", "Cheese Grilled Sandwich"]
+    },
+    "pastas": {
+        "name": "Pasta",
+        "alternatives": ["Veg Hakka Noodles", "Classic Masala Maggi", "Cheese Grilled Sandwich"]
+    },
+    "macaroni": {
+        "name": "Macaroni",
+        "alternatives": ["Classic Masala Maggi", "Veg Hakka Noodles"]
+    },
+    "spaghetti": {
+        "name": "Spaghetti",
+        "alternatives": ["Veg Hakka Noodles", "Classic Masala Maggi"]
+    },
+    "lasagna": {
+        "name": "Lasagna",
+        "alternatives": ["Cheese Grilled Sandwich", "Chilli Paneer Dry"]
+    },
+    "momo": {
+        "name": "Momos",
+        "alternatives": ["Chilli Paneer Dry", "Veg Hakka Noodles", "Schezwan Fried Rice"]
+    },
+    "momos": {
+        "name": "Momos",
+        "alternatives": ["Chilli Paneer Dry", "Veg Hakka Noodles", "Schezwan Fried Rice"]
+    },
+    "dim sum": {
+        "name": "Dim Sum",
+        "alternatives": ["Idli Sambar (2 pcs)", "Chilli Paneer Dry"]
+    },
+    "dumpling": {
+        "name": "Dumplings",
+        "alternatives": ["Idli Sambar (2 pcs)", "Chilli Paneer Dry"]
+    },
+    "dumplings": {
+        "name": "Dumplings",
+        "alternatives": ["Idli Sambar (2 pcs)", "Chilli Paneer Dry"]
+    },
+    "french fries": {
+        "name": "French Fries",
+        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)", "Mumbai Vada Pav"]
+    },
+    "fries": {
+        "name": "Fries",
+        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)", "Mumbai Vada Pav"]
+    },
+    "potato wedges": {
+        "name": "Potato Wedges",
+        "alternatives": ["Veg Cutlet (2 pcs)", "Samosa (2 pcs)"]
+    },
+    "shawarma": {
+        "name": "Shawarma",
+        "alternatives": ["Chicken Tikka Roll", "Paneer Kathi Roll"]
+    },
+    "falafel": {
+        "name": "Falafel",
+        "alternatives": ["Veg Cutlet (2 pcs)", "Paneer Kathi Roll"]
+    },
+    "kebab": {
+        "name": "Kebabs",
+        "alternatives": ["Chicken Tikka Roll", "Chilli Chicken Dry", "Veg Cutlet (2 pcs)"]
+    },
+    "kebabs": {
+        "name": "Kebabs",
+        "alternatives": ["Chicken Tikka Roll", "Chilli Chicken Dry", "Veg Cutlet (2 pcs)"]
+    },
+    "sushi": {
+        "name": "Sushi",
+        "alternatives": ["Schezwan Fried Rice", "Veg Hakka Noodles"]
+    },
+    "ramen": {
+        "name": "Ramen",
+        "alternatives": ["Classic Masala Maggi", "Veg Hakka Noodles"]
+    },
+    "taco": {
+        "name": "Tacos",
+        "alternatives": ["Paneer Kathi Roll", "Mumbai Vada Pav"]
+    },
+    "tacos": {
+        "name": "Tacos",
+        "alternatives": ["Paneer Kathi Roll", "Mumbai Vada Pav"]
+    },
+    "burrito": {
+        "name": "Burrito",
+        "alternatives": ["Paneer Kathi Roll", "Aloo Corn Roll"]
+    },
+    "nachos": {
+        "name": "Nachos",
+        "alternatives": ["Cheese Grilled Sandwich", "Samosa (2 pcs)"]
+    },
+    "ice cream": {
+        "name": "Ice Cream",
+        "alternatives": ["Fresh Fruit Custard", "Chocolate Walnut Brownie", "Iced Cold Coffee"]
+    },
+    "icecream": {
+        "name": "Ice Cream",
+        "alternatives": ["Fresh Fruit Custard", "Chocolate Walnut Brownie", "Iced Cold Coffee"]
+    },
+    "paratha": {
+        "name": "Paratha",
+        "alternatives": ["Paneer Kathi Roll", "Aloo Corn Roll", "Chole Bhature"]
+    },
+    "pav bhaji": {
+        "name": "Pav Bhaji",
+        "alternatives": ["Mumbai Vada Pav", "Chole Bhature", "Bun Maska"]
+    },
+    "pani puri": {
+        "name": "Pani Puri",
+        "alternatives": ["Samosa (2 pcs)", "Mumbai Vada Pav"]
+    },
+    "golgappa": {
+        "name": "Golgappa",
+        "alternatives": ["Samosa (2 pcs)", "Mumbai Vada Pav"]
+    },
+    "bhel puri": {
+        "name": "Bhel Puri",
+        "alternatives": ["Indori Poha", "Mumbai Vada Pav"]
+    },
+    "chaat": {
+        "name": "Chaat",
+        "alternatives": ["Samosa (2 pcs)", "Mumbai Vada Pav"]
+    },
+    "mutton": {
+        "name": "Mutton",
+        "alternatives": ["Chicken Dum Biryani", "Chicken Tikka Roll"]
+    },
+    "fish": {
+        "name": "Fish",
+        "alternatives": ["Chicken Tikka Roll", "Chilli Chicken Dry"]
+    },
+    "seafood": {
+        "name": "Seafood",
+        "alternatives": ["Chicken Tikka Roll", "Chilli Chicken Dry"]
+    },
+    "prawns": {
+        "name": "Prawns",
+        "alternatives": ["Chicken Tikka Roll", "Chilli Chicken Dry"]
+    },
+    "soup": {
+        "name": "Soup",
+        "alternatives": ["Jain Dal Khichdi", "Veg Hakka Noodles"]
+    },
+    "salad": {
+        "name": "Salad",
+        "alternatives": ["Fresh Fruit Custard", "Curd Rice"]
+    },
+    "shake": {
+        "name": "Milkshake",
+        "alternatives": ["Iced Cold Coffee", "Alphonso Mango Lassi"]
+    },
+    "milkshake": {
+        "name": "Milkshake",
+        "alternatives": ["Iced Cold Coffee", "Alphonso Mango Lassi"]
+    },
+    "smoothie": {
+        "name": "Smoothie",
+        "alternatives": ["Alphonso Mango Lassi", "Fresh Fruit Custard"]
+    },
+    "boba": {
+        "name": "Boba / Bubble Tea",
+        "alternatives": ["Iced Cold Coffee", "Alphonso Mango Lassi"]
+    },
+    "waffle": {
+        "name": "Waffles",
+        "alternatives": ["Chocolate Walnut Brownie", "Warm Gulab Jamun (2 pcs)"]
+    },
+    "waffles": {
+        "name": "Waffles",
+        "alternatives": ["Chocolate Walnut Brownie", "Warm Gulab Jamun (2 pcs)"]
+    },
+    "pancake": {
+        "name": "Pancakes",
+        "alternatives": ["Masala Dosa", "Bun Maska", "Indori Poha"]
+    },
+    "pancakes": {
+        "name": "Pancakes",
+        "alternatives": ["Masala Dosa", "Bun Maska", "Indori Poha"]
+    },
+    "garlic bread": {
+        "name": "Garlic Bread",
+        "alternatives": ["Cheese Grilled Sandwich", "Mumbai Vada Pav"]
+    }
+}
+
+
+def check_off_menu_item(message: str, foods: List[Any]) -> Optional[Tuple[str, List[Any], List[str]]]:
+    """
+    Checks if the student's request asks for any food or dish that is NOT on our canteen menu.
+    If detected, returns (reply_text, suggested_alternatives, followups).
+    """
+    lower = message.strip().lower()
+
+    # 1. Check known off-menu dictionary
+    for key, info in OFF_MENU_FOOD_MAP.items():
+        if re.search(rf"\b{re.escape(key)}\b", lower):
+            matched_alts = []
+            for alt_name in info["alternatives"]:
+                for f in foods:
+                    if f.name.lower() == alt_name.lower() and f.available:
+                        matched_alts.append(f)
+                        break
+
+            if not matched_alts:
+                matched_alts = [f for f in foods if f.available][:3]
+
+            reply = (
+                f"Sorry, **{info['name']}** is not available on our canteen menu.\n\n"
+                f"Our canteen specializes in freshly prepared rolls, sandwiches, biryanis, dosas, Maggi noodles, snacks, and beverages. "
+                f"Here are some popular available alternatives you might enjoy instead:"
+            )
+
+            followups = [f"Order {m.name}" for m in matched_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
+            return reply, matched_alts[:3], followups
+
+    # 2. General food inquiry pattern: "do you have X", "is X available", "can I get X", "i want X"
+    inquiry_patterns = [
+        r"\b(?:do you (?:have|serve|make)|is there|can i (?:get|have|order)|got any|any)\s+([a-z\s]+?)(?:\s+available|\s+on the menu|\s+in (?:the )?canteen|\s+today|\?|$)",
+        r"\b(?:i want|give me|craving|looking for|order)\s+(?:a|an|some)?\s*([a-z\s]+?)(?:\s+under|\s+below|\s+within|\s+for|\s+with|\s+in|\.|\?|$)"
+    ]
+
+    GENERIC_WORDS = {
+        "food", "something", "anything", "meal", "lunch", "dinner", "breakfast", "snack",
+        "quick bite", "healthy", "spicy", "sweet", "tasty", "hot", "cold", "vegetarian",
+        "non-vegetarian", "vegan", "jain", "cheap", "best", "option", "options", "items", "dishes",
+        "recommendation", "suggestions", "drinks", "beverages", "desserts", "sweets"
+    }
+
+    # Extract all tokens from actual canteen menu
+    menu_tokens = set()
+    for f in foods:
+        for word in f.name.lower().split():
+            menu_tokens.add(word)
+        if f.category:
+            for word in f.category.lower().split():
+                menu_tokens.add(word)
+        if f.ingredients:
+            for word in f.ingredients.lower().replace(",", " ").split():
+                menu_tokens.add(word)
+        if f.tags:
+            for word in f.tags.lower().replace(",", " ").replace("-", " ").split():
+                menu_tokens.add(word)
+
+    for pat in inquiry_patterns:
+        m = re.search(pat, lower)
+        if m:
+            candidate = m.group(1).strip()
+            cand_words = [w for w in candidate.split() if w not in ["a", "an", "the", "some", "my", "to", "eat", "drink"]]
+            if not cand_words:
+                continue
+            if all(w in GENERIC_WORDS for w in cand_words):
+                continue
+
+            matches_menu = any(w in menu_tokens for w in cand_words)
+            if not matches_menu:
+                clean_name = " ".join(cand_words).title()
+                available_alts = [f for f in foods if f.available][:3]
+                reply = (
+                    f"Sorry, **{clean_name}** is not available on our canteen menu.\n\n"
+                    f"Our canteen offers freshly made campus meals including rolls, rice dishes, dosas, sandwiches, snacks, and drinks. "
+                    f"Here are some top picks currently available:"
+                )
+                followups = [f"Order {m.name}" for m in available_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
+                return reply, available_alts, followups
+
+    return None
+
+

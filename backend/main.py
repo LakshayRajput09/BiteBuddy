@@ -36,7 +36,8 @@ from llm_service import (
     classify_chat_intent,
     generate_suggested_followups,
     handle_menu_inquiry,
-    handle_nutrition_inquiry
+    handle_nutrition_inquiry,
+    check_off_menu_item
 )
 from session_store import session_store
 from contextlib import asynccontextmanager
@@ -203,7 +204,22 @@ async def chat_endpoint(
             session_id=session.session_id
         )
 
-    # 2. Check general greetings & assistance inquiries
+    # 2. Check if the user is asking for an item NOT on our canteen menu
+    all_foods = db.query(Food).all()
+    off_menu_match = check_off_menu_item(raw_message, all_foods)
+    if off_menu_match:
+        reply_text, alts, followups = off_menu_match
+        matched_out = [FoodOut.model_validate(f) for f in alts]
+        return ChatResponse(
+            reply_text=reply_text,
+            is_clarification=False,
+            intent="off_menu",
+            matched_items=matched_out,
+            suggested_followups=followups,
+            session_id=session.session_id
+        )
+
+    # 3. Check general greetings & assistance inquiries
     intent = classify_chat_intent(raw_message)
     if intent == "greeting":
         followups = generate_suggested_followups(intent="greeting")
