@@ -1,0 +1,36 @@
+item_id,name,category,price,ingredients,vegetarian,vegan,jain,spicy,sweet,preparation_time,available,cuisine,serving_size,tags,image_emoji
+1,Paneer Kathi Roll,Roll,65,"paneer,onion,capsicum,wheat roti,mint chutney,spices",true,false,false,true,false,8,true,North Indian,1 roll,"filling,protein-rich,spicy,roll",🌯
+2,Chicken Tikka Roll,Roll,85,"chicken,onion,wheat roti,mint chutney,spices",false,false,false,true,false,9,true,North Indian,1 roll,"protein,non-veg,roll,savory",🌯
+3,Egg Bhurji Roll,Roll,55,"eggs,onion,tomato,wheat roti,green chilli,spices",false,false,false,true,false,7,true,Indian,1 roll,"quick-bite,egg,protein",🌯
+4,Aloo Corn Roll,Roll,45,"potatoes,sweet corn,wheat roti,coriander,spices",true,true,false,true,false,6,true,Indian,1 roll,"budget,vegan,quick-bite",🌯
+5,Veg Biryani,Rice,80,"basmati rice,carrots,beans,peas,onion,aromatic spices",true,true,false,true,false,14,true,Hyderabadi,1 bowl,"heavy-meal,filling,flavorful",🍚
+6,Chicken Dum Biryani,Rice,120,"basmati rice,chicken,yogurt,fried onion,saffron,spices",false,false,false,true,false,15,true,Hyderabadi,1 bowl,"hearty,non-veg,chef-special",🍗
+7,Rajma Chawal,Rice,70,"kidney beans,basmati rice,tomato gravy,ginger,garlic,spices",true,true,false,true,false,10,true,Punjabi,1 bowl,"comfort-food,homely,fiber-rich",🍛
+8,Jain Dal Khichdi,Rice,60,"rice,yellow moong dal,cumin,turmeric,ghee",true,false,true,false,false,8,true,Indian,1 bowl,"light,gut-friendly,jain,comfort",🍲
+9,Curd Rice,Rice,50,"rice,fresh curd,mustard seeds,curry leaves,green chilli",true,false,true,false,false,5,true,South Indian,1 bowl,"cooling,soothing,exam-calm",🥣
+10,Schezwan Fried Rice,Rice,75,"rice,cabbage,bell pepper,onion,schezwan sauce,garlic",true,true,false,true,false,11,true,Indo-Chinese,1 bowl,"fiery,spicy,street-style",🥡
+11,Cheese Grilled Sandwich,Snacks,50,"white bread,cheese slice,tomato,cucumber,capsicum,butter",true,false,false,false,false,5,true,Continental,2 halves,"cheesy,quick,crowd-favorite",🥪
+12,Masala Dosa,Snacks,60,"fermented rice-lentil batter,spiced potato filling,coconut chutney,sambar",true,true,false,true,false,10,true,South Indian,1 dosa,"crispy,traditional,filling",🥞
+13,Samosa (2 pcs),Snacks,25,"refined flour pastry,spiced potato,peas,cumin,tamarind chutney",true,true,false,true,false,4,true,North Indian,2 pieces,"budget,crispy,tea-time",🥟
+14,Mumbai Vada Pav,Snacks,25,"potato patty,pav bun,garlic chutney,fried green chilli",true,true,false,true,false,4,true,Maharashtrian,1 pav,"street-style,spicy,grab-and-go",🍔
+15,Veg Cutlet (2 pcs),Snacks,35,"potatoes,beetroot,carrots,breadcrumbs,green chutney",true,true,false,true,false,6,true,Indian,2 cutlets,"crispy,budget,evening-snack",🧆
+16,Bun Maska,Snacks,25,"soft bun,butter,tutti frutti",true,false,true,false,true,3,true,Parsi/Irani,1 bun,"nostalgic,sweet-touch,tea-partner",🍞
+17,Indori Poha,Snacks,30,"flattened rice,peanuts,onion,mustard seeds,lemon,sev",true,true,false,false,false,5,true,Central Indian,1 plate,"light-breakfast,vegan,digestible",🥣
+18,Idli Sambar (2 pcs),Snacks,40,"steamed rice-lentil cakes,toor dal sambar,coconut chutney",true,true,false,false,false,5,true,South Indian,2 idlis,"healthy,steamed,oil-free",⚪
+19,Chole Bhature,Snacks,85,"spiced chickpeas,deep-fried puffed bread,pickled onions",true,false,false,true,false,12,true,Punjabi,2 bhature + chole,"heavy,indulgent,cheat-meal",🥘
+20,Classic Masala Maggi,Noodles,40,"instant noodles,onion,tomato,peas,maggi masala",true,true,false,true,false,7,true,Indian Fusion,1 bowl,"late-night-vibe,nostalgic,spicy",🍜
+21,Cheese Masala Maggi,Noodles,55,"instant noodles,processed cheese,vegetables,spices",true,false,false,true,false,8,true,Indian Fusion,1 bowl,"creamy,cheesy,comforting",🍜
+22,Veg Hakka Noodles,Noodles,70,"noodles,cabbage,carrot,capsicum,spring onion,soy sauce",true,true,false,false,false,9,true,Indo-Chinese,1 bowl,"mild,classic,wok-tossed",🥢
+23,Egg Hakka Noodles,Noodles,80,"noodles,scrambled egg,vegetables,soy sauce,pepper",false,false,false,true,false,10,true,Indo-Chinese,1 bowl,"protein,egg,chinese",🥢
+24,Chilli Paneer Dry,Chinese,95,"paneer cubes,bell pepper,onion,soya sauce,green chillies",true,false,false,true,false,10,true,Indo-Chinese,1 plate,"starter,appetizer,spicy,tangy",🧆
+25,Chilli Chicken Dry,Chinese,110,"boneless chicken,soya sauce,chilli sauce,spring onion",false,false,false,true,false,11,true,Indo-Chinese,1 plate,"spicy,non-veg,protein-snack",🍗
+26,Cutting Masala Chai,Beverages,15,"brewed black tea,milk,ginger,cardamom,sugar",true,false,true,false,true,3,true,Indian,1 glass,"energy-boost,exam-prep,hot",☕
+27,South Indian Filter Coffee,Beverages,25,"freshly brewed chicory coffee,frothed milk,sugar",true,false,true,false,true,4,true,South Indian,1 cup,"caffeine,invigorating,hot",☕
+28,Iced Cold Coffee,Beverages,45,"espresso blend,chilled milk,vanilla ice cream,chocolate syrup",true,false,false,false,true,4,true,Continental,300 ml,"refreshing,sweet,chilled",🧋
+29,Fresh Lime Soda (Sweet/Salt),Beverages,30,"club soda,fresh lemon juice,mint,kala namak,sugar syrup",true,true,false,false,true,3,true,Indian,300 ml,"digestive,thirst-quencher,vegan",🍋
+30,Alphonso Mango Lassi,Beverages,50,"thick yogurt,mango pulp,cardamom,pistachio garnish",true,false,false,false,true,4,true,Indian,250 ml,"rich,cooling,sweet,creamy",🥭
+31,Chilled Masala Buttermilk (Chaas),Beverages,20,"curd,water,roasted cumin,coriander,black salt",true,false,true,true,false,2,true,Indian,250 ml,"gut-friendly,cooling,hydrating",🥛
+32,Warm Gulab Jamun (2 pcs),Sweets,35,"milk solids,sugar syrup,rose water,cardamom",true,false,true,false,true,3,true,Indian,2 pcs,"sweet-tooth,dessert,warm",🍮
+33,Chocolate Walnut Brownie,Sweets,60,"cocoa,walnuts,refined flour,dark chocolate",true,false,false,false,true,3,true,Bakery,1 slice,"chocolate-craving,sweet,comfort",🍰
+34,Fresh Fruit Custard,Sweets,40,"vanilla custard,apple,banana,pomegranate,grapes",true,false,true,false,true,4,true,Continental,1 bowl,"fruity,light-sweet,chilled",🍨
+

@@ -1,0 +1,38 @@
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.venv/
+venv/
+ENV/
+env/
+
+# SQLite Database
+*.db
+*.sqlite3
+
+# Node & Next.js
+node_modules/
+*/node_modules/
+.next/
+*/.next/
+out/
+build/
+dist/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
