@@ -370,5 +370,67 @@ def test_chat_off_menu_item_unavailable(client):
     assert "not available on our canteen menu" in data_taco["reply_text"].lower()
 
 
+def test_chat_irrelevant_query(client):
+    # 1. Technical / Coding question
+    res1 = client.post("/chat", json={"message": "Write a python script to reverse a linked list"})
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["intent"] == "irrelevant"
+    assert "not relevant" in data1["reply_text"].lower()
+    assert len(data1["matched_items"]) == 0
+
+    # 2. Math / Homework question
+    res2 = client.post("/chat", json={"message": "Can you solve 3x + 15 = 45?"})
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["intent"] == "irrelevant"
+    assert "not relevant" in data2["reply_text"].lower()
+
+    # 3. World trivia / Politics
+    res3 = client.post("/chat", json={"message": "Who is the president of France?"})
+    assert res3.status_code == 200
+    data3 = res3.json()
+    assert data3["intent"] == "irrelevant"
+    assert "not relevant" in data3["reply_text"].lower()
+
+    # 4. Non-canteen everyday advice
+    res4 = client.post("/chat", json={"message": "How do I fix a flat tire on my car?"})
+    assert res4.status_code == 200
+    data4 = res4.json()
+    assert data4["intent"] == "irrelevant"
+    assert "not relevant" in data4["reply_text"].lower()
+
+
+def test_chat_sold_out_on_menu_item_unavailable_and_recommends(client):
+    # 1. Set Paneer Kathi Roll (item 1) to Unavailable
+    client.put("/menu/1/availability", json={"available": False})
+
+    # 2. Student asks for Paneer Kathi Roll
+    res = client.post("/chat", json={"message": "Can I get a Paneer Kathi Roll?"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "unavailable_item"
+    # Must FIRST tell user it is unavailable / sold out:
+    assert "unavailable" in data["reply_text"].lower() or "sold out" in data["reply_text"].lower()
+    assert "paneer kathi roll" in data["reply_text"].lower()
+    # Must THEN recommend available alternatives:
+    assert "recommend" in data["reply_text"].lower() or "alternative" in data["reply_text"].lower()
+    assert len(data["matched_items"]) > 0
+    # Every recommended alternative MUST be currently available!
+    for item in data["matched_items"]:
+        assert item["available"] is True
+        assert item["name"] != "Paneer Kathi Roll"
+
+    # 3. Restore Paneer Kathi Roll to Available
+    client.put("/menu/1/availability", json={"available": True})
+
+    # 4. When available, inquiry confirms it is in stock!
+    res_avail = client.post("/chat", json={"message": "Is Paneer Kathi Roll available?"})
+    assert res_avail.status_code == 200
+    data_avail = res_avail.json()
+    assert "available right now" in data_avail["reply_text"].lower() or "in stock" in data_avail["reply_text"].lower()
+
+
+
 
 

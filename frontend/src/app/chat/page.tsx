@@ -364,6 +364,27 @@ export default function ChatPage() {
                       </div>
                     )}
 
+                    {msg.intent === "unavailable_item" && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 mb-2.5 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/80 w-fit">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Item Unavailable • Fresh Alternatives Recommended</span>
+                      </div>
+                    )}
+
+                    {msg.intent === "off_menu" && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-orange-900 mb-2.5 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/80 w-fit">
+                        <AlertCircle className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                        <span>Not On Canteen Menu • Fresh Alternatives Recommended</span>
+                      </div>
+                    )}
+
+                    {msg.intent === "irrelevant" && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 w-fit">
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>BiteBuddy Scope Notice</span>
+                      </div>
+                    )}
+
                     {/* Main Reply Text */}
                     <div className="prose prose-sm max-w-none text-slate-800 font-normal">
                       {msg.text}

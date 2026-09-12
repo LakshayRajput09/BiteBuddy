@@ -37,7 +37,9 @@ from llm_service import (
     generate_suggested_followups,
     handle_menu_inquiry,
     handle_nutrition_inquiry,
-    check_off_menu_item
+    check_off_menu_item,
+    check_unavailable_or_off_menu,
+    check_relevance
 )
 from session_store import session_store
 from contextlib import asynccontextmanager
@@ -192,7 +194,27 @@ async def chat_endpoint(
             if student_goal.protein_goal >= 100 and not session.preferences.protein_goal:
                 session.preferences.protein_goal = "high"
 
-    # 1. Invalid input validation (e.g. negative budget)
+    # 1. Relevance check: Ensure query is relevant to BiteBuddy college canteen system
+    is_irrelevant, reason = check_relevance(raw_message)
+    if is_irrelevant:
+        return ChatResponse(
+            reply_text=(
+                "I'm sorry, but that is **not relevant** to BiteBuddy! 🍽️\n\n"
+                "I am your dedicated college canteen food assistant. I can only assist you with:\n"
+                "• **Meal recommendations** based on your cravings, budget, and break time\n"
+                "• **Checking canteen menu items** and real-time food availability\n"
+                "• **Nutritional facts** (protein, calories, carbs, and healthy choices)\n"
+                "• **Food orders** and tracking your daily macro goals\n\n"
+                "Please ask me anything about our canteen menu or what you'd like to eat!"
+            ),
+            is_clarification=False,
+            intent="irrelevant",
+            suggested_followups=["What's on the menu today?", "High protein options", "Quick snacks under 10m", "Dishes under ₹100"],
+            matched_items=[],
+            session_id=session.session_id
+        )
+
+    # 2. Invalid input validation (e.g. negative budget)
     try:
         extracted = await extract_user_preferences(raw_message)
     except ValueError as ve:
@@ -204,16 +226,17 @@ async def chat_endpoint(
             session_id=session.session_id
         )
 
-    # 2. Check if the user is asking for an item NOT on our canteen menu
+    # 3. Check if user asked for an UNAVAILABLE on-menu dish OR an OFF-MENU food item
+    # Rule: First tell user it is not available, then recommend kitchen-fresh alternatives!
     all_foods = db.query(Food).all()
-    off_menu_match = check_off_menu_item(raw_message, all_foods)
-    if off_menu_match:
-        reply_text, alts, followups = off_menu_match
+    unavail_match = check_unavailable_or_off_menu(raw_message, all_foods)
+    if unavail_match:
+        reply_text, alts, followups, match_intent = unavail_match
         matched_out = [FoodOut.model_validate(f) for f in alts]
         return ChatResponse(
             reply_text=reply_text,
             is_clarification=False,
-            intent="off_menu",
+            intent=match_intent,
             matched_items=matched_out,
             suggested_followups=followups,
             session_id=session.session_id

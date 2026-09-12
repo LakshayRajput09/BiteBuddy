@@ -420,15 +420,33 @@ def handle_menu_inquiry(message: str, foods: List[Any]) -> Tuple[str, List[Any],
     # 2. Availability check: "is cold coffee available?", "do you have samosa?"
     for f in foods:
         if f.name.lower() in lower or (len(f.name) > 4 and f.name.lower()[:5] in lower):
-            status = "in stock and available right now! 🎉" if f.available else "currently sold out / unavailable 😔."
-            reply = (
-                f"**{f.name}** is {status}\n\n"
-                f"• **Price**: ₹{int(f.price)}\n"
-                f"• **Prep time**: {f.preparation_time} mins\n"
-                f"• **Nutrition**: {int(f.calories or 0)} kcal | {int(f.protein or 0)}g Protein | {int(f.carbohydrates or 0)}g Carbs"
-            )
-            matched = [f]
-            return reply, matched, [f"Add {f.name} to order", "Show similar items", "Dishes under ₹100"]
+            if not f.available:
+                # FIRST state that item is not available, THEN recommend available alternatives!
+                alts = [
+                    alt for alt in foods 
+                    if alt.available and alt.item_id != f.item_id and (
+                        alt.category == f.category or (alt.vegetarian == f.vegetarian and alt.spicy == f.spicy)
+                    )
+                ]
+                if not alts:
+                    alts = [alt for alt in foods if alt.available and alt.vegetarian == f.vegetarian]
+                if not alts:
+                    alts = [alt for alt in foods if alt.available]
+                selected_alts = alts[:3]
+                reply = (
+                    f"Sorry, **{f.name}** is currently **unavailable (sold out)** in the canteen.\n\n"
+                    f"Here are some delicious available alternatives we recommend instead:"
+                )
+                return reply, selected_alts, [f"Order {a.name}" for a in selected_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
+            else:
+                reply = (
+                    f"Yes, **{f.name}** is in stock and available right now! 🎉\n\n"
+                    f"• **Price**: ₹{int(f.price)}\n"
+                    f"• **Prep time**: {f.preparation_time} mins\n"
+                    f"• **Nutrition**: {int(f.calories or 0)} kcal | {int(f.protein or 0)}g Protein | {int(f.carbohydrates or 0)}g Carbs"
+                )
+                matched = [f]
+                return reply, matched, [f"Add {f.name} to order", "Show similar items", "Dishes under ₹100"]
 
     # 3. Ingredient search: "what items have paneer", "dishes with cheese"
     ingr_match = re.search(r"\b(paneer|cheese|egg|chicken|maggi|rice|potato|aloo|mushroom|chocolate)\b", lower)
@@ -737,14 +755,249 @@ OFF_MENU_FOOD_MAP = {
 }
 
 
-def check_off_menu_item(message: str, foods: List[Any]) -> Optional[Tuple[str, List[Any], List[str]]]:
+# ==================================================
+# Relevance & Domain Scope Safeguards
+# ==================================================
+
+FOOD_AND_CANTEEN_KEYWORDS = {
+    # Meals & courses
+    "food", "meal", "meals", "lunch", "dinner", "breakfast", "snack", "snacks",
+    "brunch", "combo", "combos", "thali", "platter", "bite", "bites", "dish",
+    "dishes", "cuisine", "item", "items", "eat", "eating", "feed", "taste",
+    "hungry", "starving", "craving", "crave", "cravings", "appetite",
+    "delicious", "tasty", "yum", "yummy",
+
+    # Specific food categories & popular dishes
+    "roll", "rolls", "sandwich", "sandwiches", "toast", "burger", "burgers",
+    "pizza", "pizzas", "pasta", "pastas", "maggi", "noodles", "rice", "biryani",
+    "pulao", "dosa", "dosas", "idli", "idlis", "vada", "pav", "samosa",
+    "samosas", "cutlet", "cutlets", "poha", "chole", "bhature", "dal", "roti",
+    "naan", "paratha", "curry", "sabzi", "gravy", "paneer", "chicken", "egg",
+    "eggs", "omelette", "bhurji", "fish", "mutton", "meat", "tofu", "salad",
+    "soup", "fries", "french fries", "momos", "momo", "dimsum", "chaat",
+    "bhel", "kachori", "dessert", "desserts", "sweet", "sweets", "gulab jamun",
+    "brownie", "brownies", "cake", "ice cream", "pastry", "custard", "halwa",
+    "jalebi", "cookie", "cookies", "biscuit", "biscuits", "bun", "maska",
+    "sourdough", "taco", "tacos", "burrito", "wrap", "wraps", "shawarma",
+    "kebab", "kebabs", "falafel", "sushi", "ramen", "dumpling", "dumplings",
+    "waffle", "waffles", "pancake", "pancakes", "milkshake", "shake", "smoothie",
+
+    # Beverages & drinks
+    "drink", "drinks", "beverage", "beverages", "coffee", "cold coffee",
+    "espresso", "cappuccino", "tea", "chai", "soda", "lime soda", "lemonade",
+    "lassi", "mango lassi", "juice", "water", "cold drink", "boba",
+
+    # Diets & dietary attributes
+    "veg", "vegetarian", "pure veg", "non-veg", "non-vegetarian", "vegan",
+    "jain", "eggitarian", "halal", "kosher", "gluten", "gluten-free",
+    "dairy", "dairy-free", "nut-free", "lactose", "spicy", "mild", "sweet",
+    "savory", "tangy", "cheesy", "crispy", "fried", "baked", "hot", "cold",
+    "warm", "fresh", "healthy", "light", "heavy", "filling", "oily", "greasy",
+
+    # Nutrition & macros
+    "nutrition", "nutrient", "nutrients", "macro", "macros", "calorie",
+    "calories", "cals", "kcal", "protein", "carbs", "carbohydrates", "fat",
+    "fats", "fiber", "sugar", "sodium", "salt", "gym", "workout", "diet",
+    "weight", "fitness", "bulk", "cutting",
+
+    # Canteen & operations
+    "canteen", "cafeteria", "cafe", "kitchen", "campus", "college", "chef",
+    "cook", "ramesh", "owner", "counter", "token", "order", "orders",
+    "ordering", "cart", "tray", "menu", "price", "prices", "pricing",
+    "cost", "cheap", "cheapest", "affordable", "expensive", "budget",
+    "rupee", "rupees", "rs", "inr", "bucks", "bill", "pay", "payment",
+    "available", "availability", "stock", "in stock", "out of stock", "sold out",
+    "prep", "preparation", "time", "minutes", "mins", "min", "fast", "quick",
+    "speed", "rush", "break", "recess", "lecture", "class", "served", "serve",
+    "serving",
+
+    # Bot assistant meta & polite conversational
+    "bitebuddy", "canteenai", "assistant", "bot", "ai", "help", "hi", "hello",
+    "hey", "hola", "greetings", "good morning", "good afternoon", "good evening",
+    "good night", "yo", "sup", "howdy", "thanks", "thank you", "bye", "goodbye",
+    "see you", "ok", "okay", "cool", "nice", "awesome", "great", "perfect",
+    "clear", "reset", "restart", "who are you", "what can you do"
+}
+
+IRRELEVANT_PATTERNS = [
+    # 1. Programming, coding, computer science, software
+    r"\b(?:python|javascript|typescript|java|c\+\+|golang|rust|ruby|php|html|css|sql|nosql|docker|kubernetes|linux|ubuntu|windows|bash|shell)\b",
+    r"\b(?:code|coding|script|function|class|method|compiler|debugger|git|github|regex|api key|variable|algorithm|data structure|binary tree|linked list|stack|queue|hash map)\b",
+    r"\b(?:write a (?:program|code|script|function|query|class)|debug my|fix (?:this )?error|syntax error|stackoverflow)\b",
+
+    # 2. Math, physics, chemistry, biology (non-nutritional), homework
+    r"\b(?:solve|calculate|equation|derivative|integral|calculus|algebra|geometry|theorem|pythagoras|logarithm|trigonometry)\b",
+    r"\b(?:\d+\s*[\+\-\*\/]\s*\d+\s*=|\b\d+x\b|\bx\s*\+\s*y\b|\bsqrt\b|\bsin\(\b|\bcos\(\b)",
+    r"\b(?:physics|chemistry|quantum|thermodynamics|newton's|einstein|gravity|periodic table|photosynthesis|mitosis|dna replication)\b",
+    r"\b(?:homework|assignment|essay on|thesis|dissertation|exam preparation|solve for x)\b",
+
+    # 3. Politics, world affairs, history, geography (non-canteen)
+    r"\b(?:president of|prime minister of|parliament|congress|senate|election|vote for|politics|political party|democrat|republican)\b",
+    r"\b(?:capital of|who invented|who discovered|world war|battle of|independence day|history of [a-z]+|monarchy|constitution)\b",
+    r"\b(?:population of|currency of|continent of|geography of|mount everest|pacific ocean|how many countries)\b",
+
+    # 4. Sports, movies, celebrities, pop culture
+    r"\b(?:who won the (?:match|game|cup|series|trophy|ipl|fifa|world cup)|football score|cricket score|tennis match)\b",
+    r"\b(?:messi|ronaldo|virat kohli|dhoni|lebron|nba|premier league|champions league)\b",
+    r"\b(?:movie|film|cinema|actor|actress|hollywood|bollywood|netflix|hbo|oscar|grammy|emmy|box office)\b",
+    r"\b(?:singer|song|lyrics of|album|taylor swift|bts|drake|eminem|ariana grande)\b",
+
+    # 5. Non-canteen services, vehicle/tech repair, personal advice, finance
+    r"\b(?:car engine|flat tire|repair my|change oil|vehicle|bike engine|flight booking|hotel booking|train ticket)\b",
+    r"\b(?:phone screen|iphone battery|laptop repair|wifi not working|bluetooth connection|printer offline)\b",
+    r"\b(?:headache medicine|paracetamol|antibiotic|cure for|fever treatment|medical diagnosis|disease symptom)\b",
+    r"\b(?:crypto|bitcoin|ethereum|stock market|shares|mutual fund|trading|forex|investing advice)\b",
+    r"\b(?:dating advice|relationship advice|astrology|horoscope|zodiac sign|meaning of life)\b",
+
+    # 6. General non-canteen creative writing / non-food requests
+    r"\b(?:write a (?:story|poem|song|essay|play|novel|rap)|tell me a story about)\b"
+]
+
+
+def check_relevance(message: str) -> Tuple[bool, Optional[str]]:
     """
-    Checks if the student's request asks for any food or dish that is NOT on our canteen menu.
-    If detected, returns (reply_text, suggested_alternatives, followups).
+    Determines if the student's message is irrelevant / unrelated to the BiteBuddy college canteen system.
+    Returns (is_irrelevant, reason).
+    """
+    clean = message.strip()
+    lower = clean.lower()
+
+    tokens = set(re.findall(r"\b[a-z0-9]+\b", lower))
+    if not tokens:
+        return True, "Empty or non-text message"
+
+    # 1. Check explicit non-canteen/irrelevant patterns
+    for pat in IRRELEVANT_PATTERNS:
+        if re.search(pat, lower):
+            return True, "Matches non-canteen topic"
+
+    # 2. Check if any token matches our extensive Food & Canteen domain keywords
+    if any(t in FOOD_AND_CANTEEN_KEYWORDS for t in tokens):
+        return False, None
+
+    # 3. Check if message contains known off-menu food dishes
+    for off_key in OFF_MENU_FOOD_MAP:
+        if re.search(rf"\b{re.escape(off_key)}\b", lower):
+            return False, None
+
+    # 4. Check price expressions (e.g., "100 rs", "₹ 50", "under 120", "below 80")
+    if re.search(r"(?:₹|rs\.?|inr|\brupees\b|\bbucks\b|\bunder\s*\d+|\bbelow\s*\d+|\bwithin\s*\d+)", lower):
+        return False, None
+
+    # 5. Check time expressions (e.g., "10 min", "5 mins", "in a hurry")
+    if re.search(r"\b\d+\s*(?:mins?|minutes?|m)\b", lower) or re.search(r"\b(rush|hurry|break|recess)\b", lower):
+        return False, None
+
+    # 6. Check common polite greetings & acknowledgements
+    GREETING_PHRASES = [
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+        "yo", "sup", "howdy", "thanks", "thank you", "bye", "goodbye", "see you",
+        "who are you", "what can you do", "help", "help me", "start", "menu"
+    ]
+    if any(phrase in lower for phrase in GREETING_PHRASES):
+        return False, None
+
+    # If none of the food/canteen keywords, off-menu foods, prices, time limits, or greetings match,
+    # and the message is a general query, it is irrelevant to our canteen app.
+    return True, "No food, dining, nutrition, or canteen context found"
+
+
+def _match_dish_nickname(lower: str, f_name_lower: str) -> bool:
+    """Matches common shortened names or nicknames to target canteen dishes."""
+    NICKNAME_MAP = {
+        "paneer roll": "paneer kathi roll",
+        "chicken roll": "chicken tikka roll",
+        "aloo roll": "aloo corn roll",
+        "cheese sandwich": "cheese grilled sandwich",
+        "grilled sandwich": "cheese grilled sandwich",
+        "veg sandwich": "bombay veg sandwich",
+        "dosa": "masala dosa",
+        "idli": "idli sambar (2 pcs)",
+        "vada pav": "mumbai vada pav",
+        "samosa": "samosa (2 pcs)",
+        "cutlet": "veg cutlet (2 pcs)",
+        "poha": "indori poha",
+        "maggi": "classic masala maggi",
+        "noodles": "veg hakka noodles",
+        "hakka noodles": "veg hakka noodles",
+        "fried rice": "schezwan fried rice",
+        "veg biryani": "hyderabadi veg biryani",
+        "chicken biryani": "dum chicken biryani",
+        "rajma chawal": "punjabi rajma chawal",
+        "chole bhature": "amritsari chole bhature",
+        "dal makhani": "dal makhani thali",
+        "chilli paneer": "chilli paneer dry",
+        "chilli chicken": "chilli chicken dry",
+        "cold coffee": "iced cold coffee",
+        "mango lassi": "alphonso mango lassi",
+        "masala chai": "masala chai (cutting)",
+        "chai": "masala chai (cutting)",
+        "tea": "masala chai (cutting)",
+        "lime soda": "fresh lime soda",
+        "lemon soda": "fresh lime soda",
+        "gulab jamun": "warm gulab jamun (2 pcs)",
+        "brownie": "chocolate walnut brownie",
+        "fruit custard": "fresh fruit custard",
+        "custard": "fresh fruit custard",
+        "bun maska": "bun maska",
+    }
+    for nick, target in NICKNAME_MAP.items():
+        if target == f_name_lower and re.search(rf"\b{re.escape(nick)}\b", lower):
+            return True
+    return False
+
+
+def check_unavailable_or_off_menu(message: str, foods: List[Any]) -> Optional[Tuple[str, List[Any], List[str], str]]:
+    """
+    Checks if the user requested:
+    1. An on-menu canteen item that is currently UNAVAILABLE / SOLD OUT
+    2. An off-menu food item (e.g. pizza, burger, momos, sushi, tacos, pasta, etc.)
+
+    In BOTH cases, BiteBuddy FIRST states that the item is not available,
+    and THEN recommends kitchen-fresh available alternatives!
+
+    Returns (reply_text, available_alternatives, suggested_followups, intent) if matched, else None.
     """
     lower = message.strip().lower()
 
-    # 1. Check known off-menu dictionary
+    # -------------------------------------------------------------
+    # A. Check ON-MENU items that are currently UNAVAILABLE / SOLD OUT
+    # -------------------------------------------------------------
+    for f in foods:
+        f_name_lower = f.name.lower()
+        matched_name = False
+        if re.search(rf"\b{re.escape(f_name_lower)}\b", lower):
+            matched_name = True
+        else:
+            matched_name = _match_dish_nickname(lower, f_name_lower)
+
+        if matched_name:
+            if not f.available:
+                # 1. FIRST tell user it is not available:
+                reply = (
+                    f"Sorry, **{f.name}** is currently **unavailable (sold out)** in our canteen kitchen.\n\n"
+                    f"Here are some delicious available alternatives we recommend that are fresh and ready right now:"
+                )
+
+                # 2. THEN recommend available alternatives:
+                alts = [
+                    alt for alt in foods
+                    if alt.available and alt.item_id != f.item_id and (
+                        alt.category == f.category or (alt.vegetarian == f.vegetarian and alt.spicy == f.spicy)
+                    )
+                ]
+                if not alts:
+                    alts = [alt for alt in foods if alt.available and alt.vegetarian == f.vegetarian]
+                if not alts:
+                    alts = [alt for alt in foods if alt.available]
+
+                selected_alts = alts[:3]
+                followups = [f"Order {a.name}" for a in selected_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
+                return reply, selected_alts, followups, "unavailable_item"
+
+    # -------------------------------------------------------------
+    # B. Check OFF-MENU foods (e.g. pizza, burger, momos, sushi, tacos)
+    # -------------------------------------------------------------
     for key, info in OFF_MENU_FOOD_MAP.items():
         if re.search(rf"\b{re.escape(key)}\b", lower):
             matched_alts = []
@@ -760,13 +1013,13 @@ def check_off_menu_item(message: str, foods: List[Any]) -> Optional[Tuple[str, L
             reply = (
                 f"Sorry, **{info['name']}** is not available on our canteen menu.\n\n"
                 f"Our canteen specializes in freshly prepared rolls, sandwiches, biryanis, dosas, Maggi noodles, snacks, and beverages. "
-                f"Here are some popular available alternatives you might enjoy instead:"
+                f"Here are some popular available alternatives we recommend you might enjoy instead:"
             )
 
             followups = [f"Order {m.name}" for m in matched_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
-            return reply, matched_alts[:3], followups
+            return reply, matched_alts[:3], followups, "off_menu"
 
-    # 2. General food inquiry pattern: "do you have X", "is X available", "can I get X", "i want X"
+    # C. General food inquiry pattern: "do you have X", "is X available", "can I get X", "i want X"
     inquiry_patterns = [
         r"\b(?:do you (?:have|serve|make)|is there|can i (?:get|have|order)|got any|any)\s+([a-z\s]+?)(?:\s+available|\s+on the menu|\s+in (?:the )?canteen|\s+today|\?|$)",
         r"\b(?:i want|give me|craving|looking for|order)\s+(?:a|an|some)?\s*([a-z\s]+?)(?:\s+under|\s+below|\s+within|\s+for|\s+with|\s+in|\.|\?|$)"
@@ -779,7 +1032,6 @@ def check_off_menu_item(message: str, foods: List[Any]) -> Optional[Tuple[str, L
         "recommendation", "suggestions", "drinks", "beverages", "desserts", "sweets"
     }
 
-    # Extract all tokens from actual canteen menu
     menu_tokens = set()
     for f in foods:
         for word in f.name.lower().split():
@@ -811,11 +1063,24 @@ def check_off_menu_item(message: str, foods: List[Any]) -> Optional[Tuple[str, L
                 reply = (
                     f"Sorry, **{clean_name}** is not available on our canteen menu.\n\n"
                     f"Our canteen offers freshly made campus meals including rolls, rice dishes, dosas, sandwiches, snacks, and drinks. "
-                    f"Here are some top picks currently available:"
+                    f"Here are some top picks currently available that we recommend:"
                 )
                 followups = [f"Order {m.name}" for m in available_alts[:2]] + ["Browse full menu", "Dishes under ₹100"]
-                return reply, available_alts, followups
+                return reply, available_alts, followups, "off_menu"
 
     return None
+
+
+def check_off_menu_item(message: str, foods: List[Any]) -> Optional[Tuple[str, List[Any], List[str]]]:
+    """
+    Backwards-compatible wrapper over check_unavailable_or_off_menu.
+    Returns (reply_text, suggested_alternatives, followups).
+    """
+    res = check_unavailable_or_off_menu(message, foods)
+    if res:
+        reply_text, alts, followups, _ = res
+        return reply_text, alts, followups
+    return None
+
 
 
